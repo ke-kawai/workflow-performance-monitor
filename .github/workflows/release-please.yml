@@ -1,0 +1,50 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+
+      # The following steps only run if a release was created
+      - name: Checkout
+        if: ${{ steps.release.outputs.release_created }}
+        uses: actions/checkout@v4
+
+      - name: Tag major and minor versions
+        if: ${{ steps.release.outputs.release_created }}
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+
+          # Get the version from the release
+          VERSION=${{ steps.release.outputs.tag_name }}
+
+          # Remove 'v' prefix to get version number
+          VERSION_NUMBER=${VERSION#v}
+
+          # Extract major version (e.g., 1 from 1.2.3)
+          MAJOR=$(echo $VERSION_NUMBER | cut -d. -f1)
+
+          # Extract major.minor version (e.g., 1.2 from 1.2.3)
+          MINOR=$(echo $VERSION_NUMBER | cut -d. -f1-2)
+
+          # Create/update major version tag (e.g., v1)
+          git tag -fa v$MAJOR -m "Release v$MAJOR"
+          git push origin v$MAJOR --force
+
+          # Create/update major.minor version tag (e.g., v1.2)
+          git tag -fa v$MINOR -m "Release v$MINOR"
+          git push origin v$MINOR --force
+
+          echo "Updated tags: v$MAJOR and v$MINOR"
