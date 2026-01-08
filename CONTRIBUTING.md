@@ -2,18 +2,28 @@
 
 ## Development Setup
 
-1. Clone the repository
+1. Fork the repository
+   - Visit https://github.com/ke-kawai/workflow-performance-monitor
+   - Click the "Fork" button in the top right corner
+   - This creates a copy of the repository in your GitHub account
+
+2. Clone your fork
 ```bash
-git clone https://github.com/ke-kawai/workflow-performance-monitor.git
+git clone https://github.com/YOUR-USERNAME/workflow-performance-monitor.git
 cd workflow-performance-monitor
 ```
 
-2. Install dependencies
+3. Add upstream remote (to sync with the original repository)
+```bash
+git remote add upstream https://github.com/ke-kawai/workflow-performance-monitor.git
+```
+
+4. Install dependencies
 ```bash
 npm install
 ```
 
-3. Build the project
+5. Build the project
 ```bash
 npm run bundle
 ```
@@ -30,21 +40,35 @@ npm run bundle
 
 ### Workflow
 
-1. Create a feature branch from `main`
+1. Sync your fork with upstream (before starting work)
 ```bash
 git checkout main
-git pull origin main
+git fetch upstream
+git merge upstream/main
+git push origin main
+```
+
+2. Create a feature branch from `main`
+```bash
 git checkout -b feature/your-feature-name
 ```
 
-2. Make your changes and commit using Conventional Commits (see below)
+3. Make your changes and commit using Conventional Commits (see below)
 
-3. Push your branch and create a Pull Request to `main`
+4. Push your branch to your fork
 ```bash
 git push origin feature/your-feature-name
 ```
 
-4. After PR review and approval, merge to `main`
+5. Create a Pull Request
+   - Go to your fork on GitHub
+   - Click "Compare & pull request" button
+   - Set the base repository to `ke-kawai/workflow-performance-monitor` and base branch to `main`
+   - Set the head repository to your fork and compare branch to your feature branch
+   - Fill in the PR description
+   - Submit the Pull Request
+
+6. After PR review and approval, maintainers will merge it to `main`
 
 ## Commit Message Convention
 
