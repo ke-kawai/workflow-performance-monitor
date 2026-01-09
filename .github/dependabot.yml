@@ -6,9 +6,9 @@ updates:
   schedule:
     interval: "weekly"
   groups:
-    minor-npm-dependencies:
+    patch-npm-dependencies:
       # NPM: Only group minor and patch updates (we want to carefully review major updates)
-      update-types: [minor, patch]
+      update-types: [patch]
 - package-ecosystem: "github-actions"
   directory: "/"
   schedule:
