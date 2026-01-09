@@ -8,7 +8,7 @@ const logger = new Logger();
 
 async function run(): Promise<void> {
   try {
-    logger.info(`Initializing workflow monitor...`);
+    logger.info(`Initializing ...`);
 
     const config = loadMainConfig();
 
