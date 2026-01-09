@@ -4,7 +4,8 @@ updates:
 - package-ecosystem: "npm"
   directory: "/"
   schedule:
-    interval: "weekly"
+    interval: "daily"
+  rebase-strategy: "auto"
   groups:
     patch-npm-dependencies:
       # NPM: Only group minor and patch updates (we want to carefully review major updates)
@@ -12,7 +13,8 @@ updates:
 - package-ecosystem: "github-actions"
   directory: "/"
   schedule:
-    interval: "weekly"
+    interval: "daily"
+  rebase-strategy: "auto"
   groups:
     minor-actions-dependencies:
       # GitHub Actions: Only group minor and patch updates (we want to carefully review major updates)
