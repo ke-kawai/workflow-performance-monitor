@@ -34,7 +34,7 @@
     "@actions/core": "^2.0.1",
     "@actions/github": "^6.0.1",
     "@octokit/openapi-types": "^27.0.0",
-    "systeminformation": "^5.28.1"
+    "systeminformation": "^5.30.2"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^29.0.0",

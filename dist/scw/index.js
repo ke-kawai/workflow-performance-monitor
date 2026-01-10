@@ -38,7 +38,7 @@ function getDefaultExportFromCjs (x) {
 
 var lib$1 = {};
 
-var version = "5.28.1";
+var version = "5.30.2";
 var require$$0 = {
 	version: version};
 
@@ -55,7 +55,7 @@ function requireUtil$7 () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -425,7 +425,7 @@ function requireUtil$7 () {
 	        } else {
 	          wmicPath = 'wmic';
 	        }
-	      } catch (e) {
+	      } catch {
 	        wmicPath = 'wmic';
 	      }
 	    }
@@ -521,7 +521,7 @@ function requireUtil$7 () {
 	      _psChild.stdin.end();
 	      _psPersistent = false;
 	    }
-	  } catch (e) {
+	  } catch {
 	    if (_psChild) {
 	      _psChild.kill();
 	    }
@@ -530,11 +530,6 @@ function requireUtil$7 () {
 	}
 
 	function powerShell(cmd) {
-	  /// const pattern = [
-	  ///   '[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]+)*|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)',
-	  ///   '(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-nq-uy=><~]))'
-	  /// ].join('|');
-
 	  if (_psPersistent) {
 	    const id = Math.random().toString(36).substring(2, 12);
 	    return new Promise((resolve) => {
@@ -552,7 +547,7 @@ function requireUtil$7 () {
 	          if (_psChild && _psChild.pid) {
 	            _psChild.stdin.write(_psToUTF8 + 'echo ' + _psCmdStart + id + _psIdSeperator + '; ' + os.EOL + cmd + os.EOL + 'echo ' + _psCmdSeperator + os.EOL);
 	          }
-	        } catch (e) {
+	        } catch {
 	          resolve('');
 	        }
 	      });
@@ -563,7 +558,13 @@ function requireUtil$7 () {
 	    return new Promise((resolve) => {
 	      process.nextTick(() => {
 	        try {
-	          const child = spawn(_powerShell, ['-NoProfile', '-NoLogo', '-InputFormat', 'Text', '-ExecutionPolicy', 'Unrestricted', '-Command', cmd], {
+	          const osVersion = os.release().split('.').map(Number);
+	          // windows 7 compatibility issue
+	          const spanOptions =
+	            osVersion[0] < 10
+	              ? ['-NoProfile', '-NoLogo', '-InputFormat', 'Text', '-NoExit', '-ExecutionPolicy', 'Unrestricted', '-Command', '-']
+	              : ['-NoProfile', '-NoLogo', '-InputFormat', 'Text', '-ExecutionPolicy', 'Unrestricted', '-Command', cmd];
+	          const child = spawn(_powerShell, spanOptions, {
 	            stdio: 'pipe',
 	            windowsHide: true,
 	            maxBuffer: 1024 * 102400,
@@ -593,18 +594,20 @@ function requireUtil$7 () {
 	              child.kill();
 	              resolve(result);
 	            });
-	            // try {
-	            //   child.stdin.write(_psToUTF8 + cmd + os.EOL);
-	            //   child.stdin.write('exit' + os.EOL);
-	            //   child.stdin.end();
-	            // } catch (e) {
-	            //   child.kill();
-	            //   resolve(result);
-	            // }
+	            if (osVersion[0] < 10) {
+	              try {
+	                child.stdin.write(_psToUTF8 + cmd + os.EOL);
+	                child.stdin.write('exit' + os.EOL);
+	                child.stdin.end();
+	              } catch {
+	                child.kill();
+	                resolve(result);
+	              }
+	            }
 	          } else {
 	            resolve(result);
 	          }
-	        } catch (e) {
+	        } catch {
 	          resolve(result);
 	        }
 	      });
@@ -1174,7 +1177,7 @@ function requireUtil$7 () {
 	    try {
 	      cpuinfo = fs.readFileSync('/proc/cpuinfo', { encoding: 'utf8' }).toString().split('\n');
 	      _rpi_cpuinfo = cpuinfo;
-	    } catch (e) {
+	    } catch {
 	      return false;
 	    }
 	  }
@@ -1190,22 +1193,23 @@ function requireUtil$7 () {
 	}
 
 	function promiseAll(promises) {
-	  const resolvingPromises = promises.map(function (promise) {
-	    return new Promise(function (resolve) {
-	      let payload = new Array(2);
-	      promise
-	        .then(function (result) {
-	          payload[0] = result;
-	        })
-	        .catch(function (error) {
-	          payload[1] = error;
-	        })
-	        .then(function () {
-	          // The wrapped Promise returns an array: 0 = result, 1 = error ... we resolve all
-	          resolve(payload);
-	        });
-	    });
-	  });
+	  const resolvingPromises = promises.map(
+	    (promise) =>
+	      new Promise((resolve) => {
+	        const payload = new Array(2);
+	        promise
+	          .then((result) => {
+	            payload[0] = result;
+	          })
+	          .catch((error) => {
+	            payload[1] = error;
+	          })
+	          .then(() => {
+	            // The wrapped Promise returns an array: 0 = result, 1 = error ... we resolve all
+	            resolve(payload);
+	          });
+	      })
+	  );
 	  const errors = [];
 	  const results = [];
 
@@ -2777,7 +2781,7 @@ function requireOsinfo () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -2791,31 +2795,31 @@ function requireOsinfo () {
 	const exec = require$$1.exec;
 	const execSync = require$$1.execSync;
 
-	let _platform = process.platform;
+	const _platform = process.platform;
 
-	const _linux = (_platform === 'linux' || _platform === 'android');
-	const _darwin = (_platform === 'darwin');
-	const _windows = (_platform === 'win32');
-	const _freebsd = (_platform === 'freebsd');
-	const _openbsd = (_platform === 'openbsd');
-	const _netbsd = (_platform === 'netbsd');
-	const _sunos = (_platform === 'sunos');
+	const _linux = _platform === 'linux' || _platform === 'android';
+	const _darwin = _platform === 'darwin';
+	const _windows = _platform === 'win32';
+	const _freebsd = _platform === 'freebsd';
+	const _openbsd = _platform === 'openbsd';
+	const _netbsd = _platform === 'netbsd';
+	const _sunos = _platform === 'sunos';
 
 	// --------------------------
 	// Get current time and OS uptime
 
 	function time() {
-	  let t = new Date().toString().split(' ');
+	  const t = new Date().toString().split(' ');
 	  let timezoneName = '';
 	  try {
 	    timezoneName = Intl.DateTimeFormat().resolvedOptions().timeZone;
 	  } catch {
-	    timezoneName = (t.length >= 7) ? t.slice(6).join(' ').replace(/\(/g, '').replace(/\)/g, '') : '';
+	    timezoneName = t.length >= 7 ? t.slice(6).join(' ').replace(/\(/g, '').replace(/\)/g, '') : '';
 	  }
 	  const result = {
 	    current: Date.now(),
 	    uptime: os.uptime(),
-	    timezone: (t.length >= 7) ? t[5] : '',
+	    timezone: t.length >= 7 ? t[5] : '',
 	    timezoneName
 	  };
 	  if (_darwin || _linux) {
@@ -2833,9 +2837,9 @@ function requireOsinfo () {
 	        current: Date.now(),
 	        uptime: os.uptime(),
 	        timezone: lines[1] ? timezone + lines[1] : timezone,
-	        timezoneName: lines[2] && lines[2].indexOf('/zoneinfo/') > 0 ? (lines[2].split('/zoneinfo/')[1] || '') : ''
+	        timezoneName: lines[2] && lines[2].indexOf('/zoneinfo/') > 0 ? lines[2].split('/zoneinfo/')[1] || '' : ''
 	      };
-	    } catch (e) {
+	    } catch {
 	      util.noop();
 	    }
 	  }
@@ -2853,121 +2857,108 @@ function requireOsinfo () {
 	  let result = _platform;
 	  if (_windows) {
 	    result = 'windows';
-	  }
-	  else if (distro.indexOf('mac os') !== -1 || distro.indexOf('macos') !== -1) {
+	  } else if (distro.indexOf('mac os') !== -1 || distro.indexOf('macos') !== -1) {
 	    result = 'apple';
-	  }
-	  else if (distro.indexOf('arch') !== -1) {
+	  } else if (distro.indexOf('arch') !== -1) {
 	    result = 'arch';
-	  }
-	  else if (distro.indexOf('cachy') !== -1) {
+	  } else if (distro.indexOf('cachy') !== -1) {
 	    result = 'cachy';
-	  }
-	  else if (distro.indexOf('centos') !== -1) {
+	  } else if (distro.indexOf('centos') !== -1) {
 	    result = 'centos';
-	  }
-	  else if (distro.indexOf('coreos') !== -1) {
+	  } else if (distro.indexOf('coreos') !== -1) {
 	    result = 'coreos';
-	  }
-	  else if (distro.indexOf('debian') !== -1) {
+	  } else if (distro.indexOf('debian') !== -1) {
 	    result = 'debian';
-	  }
-	  else if (distro.indexOf('deepin') !== -1) {
+	  } else if (distro.indexOf('deepin') !== -1) {
 	    result = 'deepin';
-	  }
-	  else if (distro.indexOf('elementary') !== -1) {
+	  } else if (distro.indexOf('elementary') !== -1) {
 	    result = 'elementary';
-	  }
-	  else if (distro.indexOf('endeavour') !== -1) {
+	  } else if (distro.indexOf('endeavour') !== -1) {
 	    result = 'endeavour';
-	  }
-	  else if (distro.indexOf('fedora') !== -1) {
+	  } else if (distro.indexOf('fedora') !== -1) {
 	    result = 'fedora';
-	  }
-	  else if (distro.indexOf('gentoo') !== -1) {
+	  } else if (distro.indexOf('gentoo') !== -1) {
 	    result = 'gentoo';
-	  }
-	  else if (distro.indexOf('mageia') !== -1) {
+	  } else if (distro.indexOf('mageia') !== -1) {
 	    result = 'mageia';
-	  }
-	  else if (distro.indexOf('mandriva') !== -1) {
+	  } else if (distro.indexOf('mandriva') !== -1) {
 	    result = 'mandriva';
-	  }
-	  else if (distro.indexOf('manjaro') !== -1) {
+	  } else if (distro.indexOf('manjaro') !== -1) {
 	    result = 'manjaro';
-	  }
-	  else if (distro.indexOf('mint') !== -1) {
+	  } else if (distro.indexOf('mint') !== -1) {
 	    result = 'mint';
-	  }
-	  else if (distro.indexOf('mx') !== -1) {
+	  } else if (distro.indexOf('mx') !== -1) {
 	    result = 'mx';
-	  }
-	  else if (distro.indexOf('openbsd') !== -1) {
+	  } else if (distro.indexOf('openbsd') !== -1) {
 	    result = 'openbsd';
-	  }
-	  else if (distro.indexOf('freebsd') !== -1) {
+	  } else if (distro.indexOf('freebsd') !== -1) {
 	    result = 'freebsd';
-	  }
-	  else if (distro.indexOf('opensuse') !== -1) {
+	  } else if (distro.indexOf('opensuse') !== -1) {
 	    result = 'opensuse';
-	  }
-	  else if (distro.indexOf('pclinuxos') !== -1) {
+	  } else if (distro.indexOf('pclinuxos') !== -1) {
 	    result = 'pclinuxos';
-	  }
-	  else if (distro.indexOf('puppy') !== -1) {
+	  } else if (distro.indexOf('puppy') !== -1) {
 	    result = 'puppy';
-	  }
-	  else if (distro.indexOf('popos') !== -1) {
+	  } else if (distro.indexOf('popos') !== -1) {
 	    result = 'popos';
-	  }
-	  else if (distro.indexOf('raspbian') !== -1) {
+	  } else if (distro.indexOf('raspbian') !== -1) {
 	    result = 'raspbian';
-	  }
-	  else if (distro.indexOf('reactos') !== -1) {
+	  } else if (distro.indexOf('reactos') !== -1) {
 	    result = 'reactos';
-	  }
-	  else if (distro.indexOf('redhat') !== -1) {
+	  } else if (distro.indexOf('redhat') !== -1) {
 	    result = 'redhat';
-	  }
-	  else if (distro.indexOf('slackware') !== -1) {
+	  } else if (distro.indexOf('slackware') !== -1) {
 	    result = 'slackware';
-	  }
-	  else if (distro.indexOf('sugar') !== -1) {
+	  } else if (distro.indexOf('sugar') !== -1) {
 	    result = 'sugar';
-	  }
-	  else if (distro.indexOf('steam') !== -1) {
+	  } else if (distro.indexOf('steam') !== -1) {
 	    result = 'steam';
-	  }
-	  else if (distro.indexOf('suse') !== -1) {
+	  } else if (distro.indexOf('suse') !== -1) {
 	    result = 'suse';
-	  }
-	  else if (distro.indexOf('mate') !== -1) {
+	  } else if (distro.indexOf('mate') !== -1) {
 	    result = 'ubuntu-mate';
-	  }
-	  else if (distro.indexOf('lubuntu') !== -1) {
+	  } else if (distro.indexOf('lubuntu') !== -1) {
 	    result = 'lubuntu';
-	  }
-	  else if (distro.indexOf('xubuntu') !== -1) {
+	  } else if (distro.indexOf('xubuntu') !== -1) {
 	    result = 'xubuntu';
-	  }
-	  else if (distro.indexOf('ubuntu') !== -1) {
+	  } else if (distro.indexOf('ubuntu') !== -1) {
 	    result = 'ubuntu';
-	  }
-	  else if (distro.indexOf('solaris') !== -1) {
+	  } else if (distro.indexOf('solaris') !== -1) {
 	    result = 'solaris';
-	  }
-	  else if (distro.indexOf('tails') !== -1) {
+	  } else if (distro.indexOf('tails') !== -1) {
 	    result = 'tails';
-	  }
-	  else if (distro.indexOf('feren') !== -1) {
+	  } else if (distro.indexOf('feren') !== -1) {
 	    result = 'ferenos';
-	  }
-	  else if (distro.indexOf('robolinux') !== -1) {
+	  } else if (distro.indexOf('robolinux') !== -1) {
 	    result = 'robolinux';
 	  } else if (_linux && distro) {
 	    result = distro.toLowerCase().trim().replace(/\s+/g, '-');
 	  }
 	  return result;
+	}
+
+	const WINDOWS_RELEASES = [
+	  [26200, '25H2'],
+	  [26100, '24H2'],
+	  [22631, '23H2'],
+	  [22621, '22H2'],
+	  [19045, '22H2'],
+	  [22000, '21H2'],
+	  [19044, '21H2'],
+	  [19043, '21H1'],
+	  [19042, '20H2'],
+	  [19041, '2004'],
+	  [18363, '1909'],
+	  [18362, '1903'],
+	  [17763, '1809'],
+	  [17134, '1803']
+	];
+
+	function getWindowsRelease(build) {
+	  for (const [minBuild, label] of WINDOWS_RELEASES) {
+	    if (build >= minBuild) return label;
+	  }
+	  return '';
 	}
 
 	// --------------------------
@@ -2979,7 +2970,7 @@ function requireOsinfo () {
 	    try {
 	      const stdout = execSync('hostname -f 2>/dev/null', util.execOptsLinux);
 	      fqdn = stdout.toString().split(os.EOL)[0];
-	    } catch (e) {
+	    } catch {
 	      util.noop();
 	    }
 	  }
@@ -2987,7 +2978,7 @@ function requireOsinfo () {
 	    try {
 	      const stdout = execSync('hostname 2>/dev/null');
 	      fqdn = stdout.toString().split(os.EOL)[0];
-	    } catch (e) {
+	    } catch {
 	      util.noop();
 	    }
 	  }
@@ -2995,7 +2986,7 @@ function requireOsinfo () {
 	    try {
 	      const stdout = execSync('echo %COMPUTERNAME%.%USERDNSDOMAIN%', util.execOptsWin);
 	      fqdn = stdout.toString().replace('.%USERDNSDOMAIN%', '').split(os.EOL)[0];
-	    } catch (e) {
+	    } catch {
 	      util.noop();
 	    }
 	  }
@@ -3006,12 +2997,10 @@ function requireOsinfo () {
 	// OS Information
 
 	function osInfo(callback) {
-
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
 	      let result = {
-
-	        platform: (_platform === 'win32' ? 'Windows' : _platform),
+	        platform: _platform === 'win32' ? 'Windows' : _platform,
 	        distro: 'unknown',
 	        release: 'unknown',
 	        codename: '',
@@ -3028,8 +3017,7 @@ function requireOsinfo () {
 	      };
 
 	      if (_linux) {
-
-	        exec('cat /etc/*-release; cat /usr/lib/os-release; cat /etc/openwrt_release', function (error, stdout) {
+	        exec('cat /etc/*-release; cat /usr/lib/os-release; cat /etc/openwrt_release', (error, stdout) => {
 	          /**
 	           * @namespace
 	           * @property {string}  DISTRIB_ID
@@ -3040,7 +3028,7 @@ function requireOsinfo () {
 	           */
 	          let release = {};
 	          let lines = stdout.toString().split('\n');
-	          lines.forEach(function (line) {
+	          lines.forEach((line) => {
 	            if (line.indexOf('=') !== -1) {
 	              release[line.split('=')[0].trim().toUpperCase()] = line.split('=')[1].trim();
 	            }
@@ -3061,7 +3049,7 @@ function requireOsinfo () {
 	          result.codename = codename;
 	          result.codepage = util.getCodepage();
 	          result.build = (release.BUILD_ID || '').replace(/"/g, '').trim();
-	          isUefiLinux().then(uefi => {
+	          isUefiLinux().then((uefi) => {
 	            result.uefi = uefi;
 	            uuid().then((data) => {
 	              result.serial = data.os;
@@ -3074,8 +3062,7 @@ function requireOsinfo () {
 	        });
 	      }
 	      if (_freebsd || _openbsd || _netbsd) {
-
-	        exec('sysctl kern.ostype kern.osrelease kern.osrevision kern.hostuuid machdep.bootmethod kern.geom.confxml', function (error, stdout) {
+	        exec('sysctl kern.ostype kern.osrelease kern.osrevision kern.hostuuid machdep.bootmethod kern.geom.confxml', (error, stdout) => {
 	          let lines = stdout.toString().split('\n');
 	          const distro = util.getValue(lines, 'kern.ostype');
 	          const logofile = getLogoFile(distro);
@@ -3083,7 +3070,7 @@ function requireOsinfo () {
 	          const serial = util.getValue(lines, 'kern.uuid');
 	          const bootmethod = util.getValue(lines, 'machdep.bootmethod');
 	          const uefiConf = stdout.toString().indexOf('<type>efi</type>') >= 0;
-	          const uefi = bootmethod ? bootmethod.toLowerCase().indexOf('uefi') >= 0 : (uefiConf ? uefiConf : null);
+	          const uefi = bootmethod ? bootmethod.toLowerCase().indexOf('uefi') >= 0 : uefiConf ? uefiConf : null;
 	          result.distro = distro || result.distro;
 	          result.logofile = logofile || result.logofile;
 	          result.release = release || result.release;
@@ -3098,7 +3085,7 @@ function requireOsinfo () {
 	        });
 	      }
 	      if (_darwin) {
-	        exec('sw_vers; sysctl kern.ostype kern.osrelease kern.osrevision kern.uuid', function (error, stdout) {
+	        exec('sw_vers; sysctl kern.ostype kern.osrelease kern.osrevision kern.uuid', (error, stdout) => {
 	          let lines = stdout.toString().split('\n');
 	          result.serial = util.getValue(lines, 'kern.uuid');
 	          result.distro = util.getValue(lines, 'ProductName');
@@ -3106,25 +3093,24 @@ function requireOsinfo () {
 	          result.build = util.getValue(lines, 'BuildVersion');
 	          result.logofile = getLogoFile(result.distro);
 	          result.codename = 'macOS';
-	          result.codename = (result.release.indexOf('10.4') > -1 ? 'OS X Tiger' : result.codename);
-	          result.codename = (result.release.indexOf('10.5') > -1 ? 'OS X Leopard' : result.codename);
-	          result.codename = (result.release.indexOf('10.6') > -1 ? 'OS X Snow Leopard' : result.codename);
-	          result.codename = (result.release.indexOf('10.7') > -1 ? 'OS X Lion' : result.codename);
-	          result.codename = (result.release.indexOf('10.8') > -1 ? 'OS X Mountain Lion' : result.codename);
-	          result.codename = (result.release.indexOf('10.9') > -1 ? 'OS X Mavericks' : result.codename);
-	          result.codename = (result.release.indexOf('10.10') > -1 ? 'OS X Yosemite' : result.codename);
-	          result.codename = (result.release.indexOf('10.11') > -1 ? 'OS X El Capitan' : result.codename);
-	          result.codename = (result.release.indexOf('10.12') > -1 ? 'Sierra' : result.codename);
-	          result.codename = (result.release.indexOf('10.13') > -1 ? 'High Sierra' : result.codename);
-	          result.codename = (result.release.indexOf('10.14') > -1 ? 'Mojave' : result.codename);
-	          result.codename = (result.release.indexOf('10.15') > -1 ? 'Catalina' : result.codename);
-	          result.codename = (result.release.startsWith('11.') ? 'Big Sur' : result.codename);
-	          result.codename = (result.release.startsWith('12.') ? 'Monterey' : result.codename);
-	          result.codename = (result.release.startsWith('13.') ? 'Ventura' : result.codename);
-	          result.codename = (result.release.startsWith('14.') ? 'Sonoma' : result.codename);
-	          result.codename = (result.release.startsWith('15.') ? 'Sequoia' : result.codename);
-	          result.codename = (result.release.startsWith('16.') ? 'Tahoe' : result.codename);
-	          result.codename = (result.release.startsWith('26.') ? 'Tahoe' : result.codename);
+	          result.codename = result.release.indexOf('10.4') > -1 ? 'OS X Tiger' : result.codename;
+	          result.codename = result.release.indexOf('10.5') > -1 ? 'OS X Leopard' : result.codename;
+	          result.codename = result.release.indexOf('10.6') > -1 ? 'OS X Snow Leopard' : result.codename;
+	          result.codename = result.release.indexOf('10.7') > -1 ? 'OS X Lion' : result.codename;
+	          result.codename = result.release.indexOf('10.8') > -1 ? 'OS X Mountain Lion' : result.codename;
+	          result.codename = result.release.indexOf('10.9') > -1 ? 'OS X Mavericks' : result.codename;
+	          result.codename = result.release.indexOf('10.10') > -1 ? 'OS X Yosemite' : result.codename;
+	          result.codename = result.release.indexOf('10.11') > -1 ? 'OS X El Capitan' : result.codename;
+	          result.codename = result.release.indexOf('10.12') > -1 ? 'Sierra' : result.codename;
+	          result.codename = result.release.indexOf('10.13') > -1 ? 'High Sierra' : result.codename;
+	          result.codename = result.release.indexOf('10.14') > -1 ? 'Mojave' : result.codename;
+	          result.codename = result.release.indexOf('10.15') > -1 ? 'Catalina' : result.codename;
+	          result.codename = result.release.startsWith('11.') ? 'Big Sur' : result.codename;
+	          result.codename = result.release.startsWith('12.') ? 'Monterey' : result.codename;
+	          result.codename = result.release.startsWith('13.') ? 'Ventura' : result.codename;
+	          result.codename = result.release.startsWith('14.') ? 'Sonoma' : result.codename;
+	          result.codename = result.release.startsWith('15.') ? 'Sequoia' : result.codename;
+	          result.codename = result.release.startsWith('26.') ? 'Tahoe' : result.codename;
 	          result.uefi = true;
 	          result.codepage = util.getCodepage();
 	          if (callback) {
@@ -3135,11 +3121,13 @@ function requireOsinfo () {
 	      }
 	      if (_sunos) {
 	        result.release = result.kernel;
-	        exec('uname -o', function (error, stdout) {
-	          let lines = stdout.toString().split('\n');
+	        exec('uname -o', (error, stdout) => {
+	          const lines = stdout.toString().split('\n');
 	          result.distro = lines[0];
 	          result.logofile = getLogoFile(result.distro);
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        });
 	      }
@@ -3151,10 +3139,9 @@ function requireOsinfo () {
 	          workload.push(util.powerShell('Get-CimInstance Win32_OperatingSystem | select Caption,SerialNumber,BuildNumber,ServicePackMajorVersion,ServicePackMinorVersion | fl'));
 	          workload.push(util.powerShell('(Get-CimInstance Win32_ComputerSystem).HypervisorPresent'));
 	          workload.push(util.powerShell('Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SystemInformation]::TerminalServerSession'));
-	          util.promiseAll(
-	            workload
-	          ).then((data) => {
-	            let lines = data.results[0] ? data.results[0].toString().split('\r\n') : [''];
+	          workload.push(util.powerShell('reg query "HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion" /v DisplayVersion'));
+	          util.promiseAll(workload).then((data) => {
+	            const lines = data.results[0] ? data.results[0].toString().split('\r\n') : [''];
 	            result.distro = util.getValue(lines, 'Caption', ':').trim();
 	            result.serial = util.getValue(lines, 'SerialNumber', ':').trim();
 	            result.build = util.getValue(lines, 'BuildNumber', ':').trim();
@@ -3163,8 +3150,16 @@ function requireOsinfo () {
 	            const hyperv = data.results[1] ? data.results[1].toString().toLowerCase() : '';
 	            result.hypervisor = hyperv.indexOf('true') !== -1;
 	            const term = data.results[2] ? data.results[2].toString() : '';
-	            result.remoteSession = (term.toString().toLowerCase().indexOf('true') >= 0);
-	            isUefiWindows().then(uefi => {
+	            if (data.results[3]) {
+	              const codenameParts = data.results[3].split('REG_SZ');
+	              result.codename = codenameParts.length > 1 ? codenameParts[1].trim() : '';
+	            }
+	            if (!result.codename) {
+	              const buildNum = parseInt(result.build, 10);
+	              result.codename = getWindowsRelease(buildNum);
+	            }
+	            result.remoteSession = term.toString().toLowerCase().indexOf('true') >= 0;
+	            isUefiWindows().then((uefi) => {
 	              result.uefi = uefi;
 	              if (callback) {
 	                callback(result);
@@ -3172,8 +3167,10 @@ function requireOsinfo () {
 	              resolve(result);
 	            });
 	          });
-	        } catch (e) {
-	          if (callback) { callback(result); }
+	        } catch {
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        }
 	      }
@@ -3186,11 +3183,11 @@ function requireOsinfo () {
 	function isUefiLinux() {
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
-	      fs.stat('/sys/firmware/efi', function (err) {
+	      fs.stat('/sys/firmware/efi', (err) => {
 	        if (!err) {
 	          return resolve(true);
 	        } else {
-	          exec('dmesg | grep -E "EFI v"', function (error, stdout) {
+	          exec('dmesg | grep -E "EFI v"', (error, stdout) => {
 	            if (!error) {
 	              const lines = stdout.toString().split('\n');
 	              return resolve(lines.length > 0);
@@ -3207,12 +3204,12 @@ function requireOsinfo () {
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
 	      try {
-	        exec('findstr /C:"Detected boot environment" "%windir%\\Panther\\setupact.log"', util.execOptsWin, function (error, stdout) {
+	        exec('findstr /C:"Detected boot environment" "%windir%\\Panther\\setupact.log"', util.execOptsWin, (error, stdout) => {
 	          if (!error) {
 	            const line = stdout.toString().split('\n\r')[0];
 	            return resolve(line.toLowerCase().indexOf('efi') >= 0);
 	          } else {
-	            exec('echo %firmware_type%', util.execOptsWin, function (error, stdout) {
+	            exec('echo %firmware_type%', util.execOptsWin, (error, stdout) => {
 	              if (!error) {
 	                const line = stdout.toString() || '';
 	                return resolve(line.toLowerCase().indexOf('efi') >= 0);
@@ -3222,7 +3219,7 @@ function requireOsinfo () {
 	            });
 	          }
 	        });
-	      } catch (e) {
+	      } catch {
 	        return resolve(false);
 	      }
 	    });
@@ -3285,7 +3282,7 @@ function requireOsinfo () {
 	        versions: {},
 	        counter: 0
 	      };
-	      apps.forEach(el => {
+	      apps.forEach((el) => {
 	        if (el) {
 	          for (let key in versionObject) {
 	            if ({}.hasOwnProperty.call(versionObject, key)) {
@@ -3296,7 +3293,9 @@ function requireOsinfo () {
 	                  result.versions.systemOpensslLib = '';
 	                }
 
-	                if (!result.versions[key]) { result.counter++; }
+	                if (!result.versions[key]) {
+	                  result.counter++;
+	                }
 	              }
 	            }
 	          }
@@ -3314,15 +3313,17 @@ function requireOsinfo () {
 	      } else {
 	        apps = apps || '*';
 	        if (typeof apps !== 'string') {
-	          if (callback) { callback({}); }
+	          if (callback) {
+	            callback({});
+	          }
 	          return resolve({});
 	        }
 	      }
 	      const appsObj = checkVersionParam(apps);
 	      let totalFunctions = appsObj.counter;
 
-	      let functionProcessed = (function () {
-	        return function () {
+	      let functionProcessed = (() => {
+	        return () => {
 	          if (--totalFunctions === 0) {
 	            if (callback) {
 	              callback(appsObj.versions);
@@ -3336,7 +3337,7 @@ function requireOsinfo () {
 	      try {
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'openssl')) {
 	          appsObj.versions.openssl = process.versions.openssl;
-	          exec('openssl version', function (error, stdout) {
+	          exec('openssl version', (error, stdout) => {
 	            if (!error) {
 	              let openssl_string = stdout.toString().split('\n')[0].trim();
 	              let openssl = openssl_string.split(' ');
@@ -3347,7 +3348,7 @@ function requireOsinfo () {
 	          });
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'npm')) {
-	          exec('npm -v', function (error, stdout) {
+	          exec('npm -v', (error, stdout) => {
 	            if (!error) {
 	              appsObj.versions.npm = stdout.toString().split('\n')[0];
 	            }
@@ -3359,7 +3360,7 @@ function requireOsinfo () {
 	          if (_windows) {
 	            cmd += '.cmd';
 	          }
-	          exec(`${cmd} -v`, function (error, stdout) {
+	          exec(`${cmd} -v`, (error, stdout) => {
 	            if (!error) {
 	              let pm2 = stdout.toString().split('\n')[0].trim();
 	              if (!pm2.startsWith('[PM2]')) {
@@ -3370,7 +3371,7 @@ function requireOsinfo () {
 	          });
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'yarn')) {
-	          exec('yarn --version', function (error, stdout) {
+	          exec('yarn --version', (error, stdout) => {
 	            if (!error) {
 	              appsObj.versions.yarn = stdout.toString().split('\n')[0];
 	            }
@@ -3382,7 +3383,7 @@ function requireOsinfo () {
 	          if (_windows) {
 	            cmd += '.cmd';
 	          }
-	          exec(`${cmd} --version`, function (error, stdout) {
+	          exec(`${cmd} --version`, (error, stdout) => {
 	            if (!error) {
 	              const gulp = stdout.toString().split('\n')[0] || '';
 	              appsObj.versions.gulp = (gulp.toLowerCase().split('version')[1] || '').trim();
@@ -3392,7 +3393,7 @@ function requireOsinfo () {
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'homebrew')) {
 	          cmd = 'brew';
-	          exec(`${cmd} --version`, function (error, stdout) {
+	          exec(`${cmd} --version`, (error, stdout) => {
 	            if (!error) {
 	              const brew = stdout.toString().split('\n')[0] || '';
 	              appsObj.versions.homebrew = (brew.toLowerCase().split(' ')[1] || '').trim();
@@ -3405,7 +3406,7 @@ function requireOsinfo () {
 	          if (_windows) {
 	            cmd += '.cmd';
 	          }
-	          exec(`${cmd} --version`, function (error, stdout) {
+	          exec(`${cmd} --version`, (error, stdout) => {
 	            if (!error) {
 	              const tsc = stdout.toString().split('\n')[0] || '';
 	              appsObj.versions.tsc = (tsc.toLowerCase().split('version')[1] || '').trim();
@@ -3418,7 +3419,7 @@ function requireOsinfo () {
 	          if (_windows) {
 	            cmd += '.cmd';
 	          }
-	          exec(`${cmd} --version`, function (error, stdout) {
+	          exec(`${cmd} --version`, (error, stdout) => {
 	            if (!error) {
 	              const grunt = stdout.toString().split('\n')[0] || '';
 	              appsObj.versions.grunt = (grunt.toLowerCase().split('cli v')[1] || '').trim();
@@ -3430,7 +3431,7 @@ function requireOsinfo () {
 	          if (_darwin) {
 	            const gitHomebrewExists = fs.existsSync('/usr/local/Cellar/git') || fs.existsSync('/opt/homebrew/bin/git');
 	            if (util.darwinXcodeExists() || gitHomebrewExists) {
-	              exec('git --version', function (error, stdout) {
+	              exec('git --version', (error, stdout) => {
 	                if (!error) {
 	                  let git = stdout.toString().split('\n')[0] || '';
 	                  git = (git.toLowerCase().split('version')[1] || '').trim();
@@ -3442,7 +3443,7 @@ function requireOsinfo () {
 	              functionProcessed();
 	            }
 	          } else {
-	            exec('git --version', function (error, stdout) {
+	            exec('git --version', (error, stdout) => {
 	              if (!error) {
 	                let git = stdout.toString().split('\n')[0] || '';
 	                git = (git.toLowerCase().split('version')[1] || '').trim();
@@ -3453,16 +3454,16 @@ function requireOsinfo () {
 	          }
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'apache')) {
-	          exec('apachectl -v 2>&1', function (error, stdout) {
+	          exec('apachectl -v 2>&1', (error, stdout) => {
 	            if (!error) {
 	              const apache = (stdout.toString().split('\n')[0] || '').split(':');
-	              appsObj.versions.apache = (apache.length > 1 ? apache[1].replace('Apache', '').replace('/', '').split('(')[0].trim() : '');
+	              appsObj.versions.apache = apache.length > 1 ? apache[1].replace('Apache', '').replace('/', '').split('(')[0].trim() : '';
 	            }
 	            functionProcessed();
 	          });
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'nginx')) {
-	          exec('nginx -v 2>&1', function (error, stdout) {
+	          exec('nginx -v 2>&1', (error, stdout) => {
 	            if (!error) {
 	              const nginx = stdout.toString().split('\n')[0] || '';
 	              appsObj.versions.nginx = (nginx.toLowerCase().split('/')[1] || '').trim();
@@ -3471,7 +3472,7 @@ function requireOsinfo () {
 	          });
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'mysql')) {
-	          exec('mysql -V', function (error, stdout) {
+	          exec('mysql -V', (error, stdout) => {
 	            if (!error) {
 	              let mysql = stdout.toString().split('\n')[0] || '';
 	              mysql = mysql.toLowerCase();
@@ -3490,7 +3491,7 @@ function requireOsinfo () {
 	          });
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'php')) {
-	          exec('php -v', function (error, stdout) {
+	          exec('php -v', (error, stdout) => {
 	            if (!error) {
 	              const php = stdout.toString().split('\n')[0] || '';
 	              let parts = php.split('(');
@@ -3503,7 +3504,7 @@ function requireOsinfo () {
 	          });
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'redis')) {
-	          exec('redis-server --version', function (error, stdout) {
+	          exec('redis-server --version', (error, stdout) => {
 	            if (!error) {
 	              const redis = stdout.toString().split('\n')[0] || '';
 	              const parts = redis.split(' ');
@@ -3513,7 +3514,7 @@ function requireOsinfo () {
 	          });
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'docker')) {
-	          exec('docker --version', function (error, stdout) {
+	          exec('docker --version', (error, stdout) => {
 	            if (!error) {
 	              const docker = stdout.toString().split('\n')[0] || '';
 	              const parts = docker.split(' ');
@@ -3523,7 +3524,7 @@ function requireOsinfo () {
 	          });
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'postfix')) {
-	          exec('postconf -d | grep mail_version', function (error, stdout) {
+	          exec('postconf -d | grep mail_version', (error, stdout) => {
 	            if (!error) {
 	              const postfix = stdout.toString().split('\n') || [];
 	              appsObj.versions.postfix = util.getValue(postfix, 'mail_version', '=', true);
@@ -3532,7 +3533,7 @@ function requireOsinfo () {
 	          });
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'mongodb')) {
-	          exec('mongod --version', function (error, stdout) {
+	          exec('mongod --version', (error, stdout) => {
 	            if (!error) {
 	              const mongodb = stdout.toString().split('\n')[0] || '';
 	              appsObj.versions.mongodb = (mongodb.toLowerCase().split(',')[0] || '').replace(/[^0-9.]/g, '');
@@ -3542,11 +3543,11 @@ function requireOsinfo () {
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'postgresql')) {
 	          if (_linux) {
-	            exec('locate bin/postgres', function (error, stdout) {
+	            exec('locate bin/postgres', (error, stdout) => {
 	              if (!error) {
 	                const postgresqlBin = stdout.toString().split('\n').sort();
 	                if (postgresqlBin.length) {
-	                  exec(postgresqlBin[postgresqlBin.length - 1] + ' -V', function (error, stdout) {
+	                  exec(postgresqlBin[postgresqlBin.length - 1] + ' -V', (error, stdout) => {
 	                    if (!error) {
 	                      const postgresql = stdout.toString().split('\n')[0].split(' ') || [];
 	                      appsObj.versions.postgresql = postgresql.length ? postgresql[postgresql.length - 1] : '';
@@ -3557,7 +3558,7 @@ function requireOsinfo () {
 	                  functionProcessed();
 	                }
 	              } else {
-	                exec('psql -V', function (error, stdout) {
+	                exec('psql -V', (error, stdout) => {
 	                  if (!error) {
 	                    const postgresql = stdout.toString().split('\n')[0].split(' ') || [];
 	                    appsObj.versions.postgresql = postgresql.length ? postgresql[postgresql.length - 1] : '';
@@ -3586,12 +3587,12 @@ function requireOsinfo () {
 	                functionProcessed();
 	              });
 	            } else {
-	              exec('postgres -V', function (error, stdout) {
+	              exec('postgres -V', (error, stdout) => {
 	                if (!error) {
 	                  const postgresql = stdout.toString().split('\n')[0].split(' ') || [];
 	                  appsObj.versions.postgresql = postgresql.length ? postgresql[postgresql.length - 1] : '';
 	                } else {
-	                  exec('pg_config --version', function (error, stdout) {
+	                  exec('pg_config --version', (error, stdout) => {
 	                    if (!error) {
 	                      const postgresql = stdout.toString().split('\n')[0].split(' ') || [];
 	                      appsObj.versions.postgresql = postgresql.length ? postgresql[postgresql.length - 1] : '';
@@ -3604,7 +3605,7 @@ function requireOsinfo () {
 	          }
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'perl')) {
-	          exec('perl -v', function (error, stdout) {
+	          exec('perl -v', (error, stdout) => {
 	            if (!error) {
 	              const perl = stdout.toString().split('\n') || '';
 	              while (perl.length > 0 && perl[0].trim() === '') {
@@ -3626,8 +3627,8 @@ function requireOsinfo () {
 	              const gitHomebrewExists1 = fs.existsSync('/usr/local/Cellar/python');
 	              const gitHomebrewExists2 = fs.existsSync('/opt/homebrew/bin/python');
 	              if ((util.darwinXcodeExists() && util.semverCompare('12.0.1', osVersion) < 0) || gitHomebrewExists1 || gitHomebrewExists2) {
-	                const cmd = gitHomebrewExists1 ? '/usr/local/Cellar/python -V 2>&1' : (gitHomebrewExists2 ? '/opt/homebrew/bin/python -V 2>&1' : 'python -V 2>&1');
-	                exec(cmd, function (error, stdout) {
+	                const cmd = gitHomebrewExists1 ? '/usr/local/Cellar/python -V 2>&1' : gitHomebrewExists2 ? '/opt/homebrew/bin/python -V 2>&1' : 'python -V 2>&1';
+	                exec(cmd, (error, stdout) => {
 	                  if (!error) {
 	                    const python = stdout.toString().split('\n')[0] || '';
 	                    appsObj.versions.python = python.toLowerCase().replace('python', '').trim();
@@ -3637,12 +3638,11 @@ function requireOsinfo () {
 	              } else {
 	                functionProcessed();
 	              }
-	            } catch (e) {
+	            } catch {
 	              functionProcessed();
 	            }
-
 	          } else {
-	            exec('python -V 2>&1', function (error, stdout) {
+	            exec('python -V 2>&1', (error, stdout) => {
 	              if (!error) {
 	                const python = stdout.toString().split('\n')[0] || '';
 	                appsObj.versions.python = python.toLowerCase().replace('python', '').trim();
@@ -3655,7 +3655,7 @@ function requireOsinfo () {
 	          if (_darwin) {
 	            const gitHomebrewExists = fs.existsSync('/usr/local/Cellar/python3') || fs.existsSync('/opt/homebrew/bin/python3');
 	            if (util.darwinXcodeExists() || gitHomebrewExists) {
-	              exec('python3 -V 2>&1', function (error, stdout) {
+	              exec('python3 -V 2>&1', (error, stdout) => {
 	                if (!error) {
 	                  const python = stdout.toString().split('\n')[0] || '';
 	                  appsObj.versions.python3 = python.toLowerCase().replace('python', '').trim();
@@ -3666,7 +3666,7 @@ function requireOsinfo () {
 	              functionProcessed();
 	            }
 	          } else {
-	            exec('python3 -V 2>&1', function (error, stdout) {
+	            exec('python3 -V 2>&1', (error, stdout) => {
 	              if (!error) {
 	                const python = stdout.toString().split('\n')[0] || '';
 	                appsObj.versions.python3 = python.toLowerCase().replace('python', '').trim();
@@ -3679,7 +3679,7 @@ function requireOsinfo () {
 	          if (_darwin) {
 	            const gitHomebrewExists = fs.existsSync('/usr/local/Cellar/pip') || fs.existsSync('/opt/homebrew/bin/pip');
 	            if (util.darwinXcodeExists() || gitHomebrewExists) {
-	              exec('pip -V 2>&1', function (error, stdout) {
+	              exec('pip -V 2>&1', (error, stdout) => {
 	                if (!error) {
 	                  const pip = stdout.toString().split('\n')[0] || '';
 	                  const parts = pip.split(' ');
@@ -3691,7 +3691,7 @@ function requireOsinfo () {
 	              functionProcessed();
 	            }
 	          } else {
-	            exec('pip -V 2>&1', function (error, stdout) {
+	            exec('pip -V 2>&1', (error, stdout) => {
 	              if (!error) {
 	                const pip = stdout.toString().split('\n')[0] || '';
 	                const parts = pip.split(' ');
@@ -3705,7 +3705,7 @@ function requireOsinfo () {
 	          if (_darwin) {
 	            const gitHomebrewExists = fs.existsSync('/usr/local/Cellar/pip3') || fs.existsSync('/opt/homebrew/bin/pip3');
 	            if (util.darwinXcodeExists() || gitHomebrewExists) {
-	              exec('pip3 -V 2>&1', function (error, stdout) {
+	              exec('pip3 -V 2>&1', (error, stdout) => {
 	                if (!error) {
 	                  const pip = stdout.toString().split('\n')[0] || '';
 	                  const parts = pip.split(' ');
@@ -3717,7 +3717,7 @@ function requireOsinfo () {
 	              functionProcessed();
 	            }
 	          } else {
-	            exec('pip3 -V 2>&1', function (error, stdout) {
+	            exec('pip3 -V 2>&1', (error, stdout) => {
 	              if (!error) {
 	                const pip = stdout.toString().split('\n')[0] || '';
 	                const parts = pip.split(' ');
@@ -3730,10 +3730,10 @@ function requireOsinfo () {
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'java')) {
 	          if (_darwin) {
 	            // check if any JVM is installed but avoid dialog box that Java needs to be installed
-	            exec('/usr/libexec/java_home -V 2>&1', function (error, stdout) {
+	            exec('/usr/libexec/java_home -V 2>&1', (error, stdout) => {
 	              if (!error && stdout.toString().toLowerCase().indexOf('no java runtime') === -1) {
 	                // now this can be done savely
-	                exec('java -version 2>&1', function (error, stdout) {
+	                exec('java -version 2>&1', (error, stdout) => {
 	                  if (!error) {
 	                    const java = stdout.toString().split('\n')[0] || '';
 	                    const parts = java.split('"');
@@ -3746,7 +3746,7 @@ function requireOsinfo () {
 	              }
 	            });
 	          } else {
-	            exec('java -version 2>&1', function (error, stdout) {
+	            exec('java -version 2>&1', (error, stdout) => {
 	              if (!error) {
 	                const java = stdout.toString().split('\n')[0] || '';
 	                const parts = java.split('"');
@@ -3758,14 +3758,14 @@ function requireOsinfo () {
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'gcc')) {
 	          if ((_darwin && util.darwinXcodeExists()) || !_darwin) {
-	            exec('gcc -dumpversion', function (error, stdout) {
+	            exec('gcc -dumpversion', (error, stdout) => {
 	              if (!error) {
 	                appsObj.versions.gcc = stdout.toString().split('\n')[0].trim() || '';
 	              }
 	              if (appsObj.versions.gcc.indexOf('.') > -1) {
 	                functionProcessed();
 	              } else {
-	                exec('gcc --version', function (error, stdout) {
+	                exec('gcc --version', (error, stdout) => {
 	                  if (!error) {
 	                    const gcc = stdout.toString().split('\n')[0].trim();
 	                    if (gcc.indexOf('gcc') > -1 && gcc.indexOf(')') > -1) {
@@ -3782,7 +3782,7 @@ function requireOsinfo () {
 	          }
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'virtualbox')) {
-	          exec(util.getVboxmanage() + ' -v 2>&1', function (error, stdout) {
+	          exec(util.getVboxmanage() + ' -v 2>&1', (error, stdout) => {
 	            if (!error) {
 	              const vbox = stdout.toString().split('\n')[0] || '';
 	              const parts = vbox.split('r');
@@ -3792,7 +3792,7 @@ function requireOsinfo () {
 	          });
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'bash')) {
-	          exec('bash --version', function (error, stdout) {
+	          exec('bash --version', (error, stdout) => {
 	            if (!error) {
 	              const line = stdout.toString().split('\n')[0];
 	              const parts = line.split(' version ');
@@ -3804,7 +3804,7 @@ function requireOsinfo () {
 	          });
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'zsh')) {
-	          exec('zsh --version', function (error, stdout) {
+	          exec('zsh --version', (error, stdout) => {
 	            if (!error) {
 	              const line = stdout.toString().split('\n')[0];
 	              const parts = line.split('zsh ');
@@ -3816,7 +3816,7 @@ function requireOsinfo () {
 	          });
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'fish')) {
-	          exec('fish --version', function (error, stdout) {
+	          exec('fish --version', (error, stdout) => {
 	            if (!error) {
 	              const line = stdout.toString().split('\n')[0];
 	              const parts = line.split(' version ');
@@ -3828,7 +3828,7 @@ function requireOsinfo () {
 	          });
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'bun')) {
-	          exec('bun -v', function (error, stdout) {
+	          exec('bun -v', (error, stdout) => {
 	            if (!error) {
 	              const line = stdout.toString().split('\n')[0].trim();
 	              appsObj.versions.bun = line;
@@ -3837,7 +3837,7 @@ function requireOsinfo () {
 	          });
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'deno')) {
-	          exec('deno -v', function (error, stdout) {
+	          exec('deno -v', (error, stdout) => {
 	            if (!error) {
 	              const line = stdout.toString().split('\n')[0].trim();
 	              const parts = line.split(' ');
@@ -3849,10 +3849,12 @@ function requireOsinfo () {
 	          });
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'node')) {
-	          exec('node -v', function (error, stdout) {
+	          exec('node -v', (error, stdout) => {
 	            if (!error) {
 	              let line = stdout.toString().split('\n')[0].trim();
-	              if (line.startsWith('v')) { line = line.slice(1); }
+	              if (line.startsWith('v')) {
+	                line = line.slice(1);
+	              }
 	              appsObj.versions.node = line;
 	            }
 	            functionProcessed();
@@ -3860,8 +3862,12 @@ function requireOsinfo () {
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'powershell')) {
 	          if (_windows) {
-	            util.powerShell('$PSVersionTable').then(stdout => {
-	              const lines = stdout.toString().toLowerCase().split('\n').map(line => line.replace(/ +/g, ' ').replace(/ +/g, ':'));
+	            util.powerShell('$PSVersionTable').then((stdout) => {
+	              const lines = stdout
+	                .toString()
+	                .toLowerCase()
+	                .split('\n')
+	                .map((line) => line.replace(/ +/g, ' ').replace(/ +/g, ':'));
 	              appsObj.versions.powershell = util.getValue(lines, 'psversion');
 	              functionProcessed();
 	            });
@@ -3871,23 +3877,31 @@ function requireOsinfo () {
 	        }
 	        if ({}.hasOwnProperty.call(appsObj.versions, 'dotnet')) {
 	          if (_windows) {
-	            util.powerShell('gci "HKLM:\\SOFTWARE\\Microsoft\\NET Framework Setup\\NDP" -recurse | gp -name Version,Release -EA 0 | where { $_.PSChildName -match "^(?!S)\\p{L}"} | select PSChildName, Version, Release').then(stdout => {
-	              const lines = stdout.toString().split('\r\n');
-	              let dotnet = '';
-	              lines.forEach(line => {
-	                line = line.replace(/ +/g, ' ');
-	                const parts = line.split(' ');
-	                dotnet = dotnet || (parts[0].toLowerCase().startsWith('client') && parts.length > 2 ? parts[1].trim() : (parts[0].toLowerCase().startsWith('full') && parts.length > 2 ? parts[1].trim() : ''));
+	            util
+	              .powerShell(
+	                'gci "HKLM:\\SOFTWARE\\Microsoft\\NET Framework Setup\\NDP" -recurse | gp -name Version,Release -EA 0 | where { $_.PSChildName -match "^(?!S)\\p{L}"} | select PSChildName, Version, Release'
+	              )
+	              .then((stdout) => {
+	                const lines = stdout.toString().split('\r\n');
+	                let dotnet = '';
+	                lines.forEach((line) => {
+	                  line = line.replace(/ +/g, ' ');
+	                  const parts = line.split(' ');
+	                  dotnet =
+	                    dotnet ||
+	                    (parts[0].toLowerCase().startsWith('client') && parts.length > 2 ? parts[1].trim() : parts[0].toLowerCase().startsWith('full') && parts.length > 2 ? parts[1].trim() : '');
+	                });
+	                appsObj.versions.dotnet = dotnet.trim();
+	                functionProcessed();
 	              });
-	              appsObj.versions.dotnet = dotnet.trim();
-	              functionProcessed();
-	            });
 	          } else {
 	            functionProcessed();
 	          }
 	        }
-	      } catch (e) {
-	        if (callback) { callback(appsObj.versions); }
+	      } catch {
+	        if (callback) {
+	          callback(appsObj.versions);
+	        }
 	        resolve(appsObj.versions);
 	      }
 	    });
@@ -3902,7 +3916,7 @@ function requireOsinfo () {
 	      if (_windows) {
 	        try {
 	          const result = 'CMD';
-	          util.powerShell(`Get-CimInstance -className win32_process | where-object {$_.ProcessId -eq ${process.ppid} } | select Name`).then(stdout => {
+	          util.powerShell(`Get-CimInstance -className win32_process | where-object {$_.ProcessId -eq ${process.ppid} } | select Name`).then((stdout) => {
 	            let result = 'CMD';
 	            if (stdout) {
 	              if (stdout.toString().toLowerCase().indexOf('powershell') >= 0) {
@@ -3922,7 +3936,7 @@ function requireOsinfo () {
 	        }
 	      } else {
 	        let result = '';
-	        exec('echo $SHELL', function (error, stdout) {
+	        exec('echo $SHELL', (error, stdout) => {
 	          if (!error) {
 	            result = stdout.toString().split('\n')[0];
 	          }
@@ -3944,7 +3958,7 @@ function requireOsinfo () {
 	    const ifaces = os.networkInterfaces();
 	    for (let dev in ifaces) {
 	      if ({}.hasOwnProperty.call(ifaces, dev)) {
-	        ifaces[dev].forEach(function (details) {
+	        ifaces[dev].forEach((details) => {
 	          if (details && details.mac && details.mac !== '00:00:00:00:00:00') {
 	            const mac = details.mac.toLowerCase();
 	            if (macs.indexOf(mac) === -1) {
@@ -3954,12 +3968,16 @@ function requireOsinfo () {
 	        });
 	      }
 	    }
-	    macs = macs.sort(function (a, b) {
-	      if (a < b) { return -1; }
-	      if (a > b) { return 1; }
+	    macs = macs.sort((a, b) => {
+	      if (a < b) {
+	        return -1;
+	      }
+	      if (a > b) {
+	        return 1;
+	      }
 	      return 0;
 	    });
-	  } catch (e) {
+	  } catch {
 	    macs.push('00:00:00:00:00:00');
 	  }
 	  return macs;
@@ -3968,7 +3986,6 @@ function requireOsinfo () {
 	function uuid(callback) {
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
-
 	      let result = {
 	        os: '',
 	        hardware: '',
@@ -3977,7 +3994,7 @@ function requireOsinfo () {
 	      let parts;
 
 	      if (_darwin) {
-	        exec('system_profiler SPHardwareDataType -json', function (error, stdout) {
+	        exec('system_profiler SPHardwareDataType -json', (error, stdout) => {
 	          if (!error) {
 	            try {
 	              const jsonObj = JSON.parse(stdout.toString());
@@ -3986,7 +4003,7 @@ function requireOsinfo () {
 	                result.os = spHardware.platform_UUID.toLowerCase();
 	                result.hardware = spHardware.serial_number;
 	              }
-	            } catch (e) {
+	            } catch {
 	              util.noop();
 	            }
 	          }
@@ -4000,7 +4017,7 @@ function requireOsinfo () {
 	        const cmd = `echo -n "os: "; cat /var/lib/dbus/machine-id 2> /dev/null ||
 cat /etc/machine-id 2> /dev/null; echo;
 echo -n "hardware: "; cat /sys/class/dmi/id/product_uuid 2> /dev/null; echo;`;
-	        exec(cmd, function (error, stdout) {
+	        exec(cmd, (error, stdout) => {
 	          const lines = stdout.toString().split('\n');
 	          result.os = util.getValue(lines, 'os').toLowerCase();
 	          result.hardware = util.getValue(lines, 'hardware').toLowerCase();
@@ -4016,12 +4033,16 @@ echo -n "hardware: "; cat /sys/class/dmi/id/product_uuid 2> /dev/null; echo;`;
 	        });
 	      }
 	      if (_freebsd || _openbsd || _netbsd) {
-	        exec('sysctl -i kern.hostid kern.hostuuid', function (error, stdout) {
+	        exec('sysctl -i kern.hostid kern.hostuuid', (error, stdout) => {
 	          const lines = stdout.toString().split('\n');
 	          result.hardware = util.getValue(lines, 'kern.hostid', ':').toLowerCase();
 	          result.os = util.getValue(lines, 'kern.hostuuid', ':').toLowerCase();
-	          if (result.os.indexOf('unknown') >= 0) { result.os = ''; }
-	          if (result.hardware.indexOf('unknown') >= 0) { result.hardware = ''; }
+	          if (result.os.indexOf('unknown') >= 0) {
+	            result.os = '';
+	          }
+	          if (result.hardware.indexOf('unknown') >= 0) {
+	            result.hardware = '';
+	          }
 	          if (callback) {
 	            callback(result);
 	          }
@@ -4036,9 +4057,9 @@ echo -n "hardware: "; cat /sys/class/dmi/id/product_uuid 2> /dev/null; echo;`;
 	        util.powerShell('Get-CimInstance Win32_ComputerSystemProduct | select UUID | fl').then((stdout) => {
 	          let lines = stdout.split('\r\n');
 	          result.hardware = util.getValue(lines, 'uuid', ':').toLowerCase();
-	          exec(`${sysdir}\\reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Cryptography" /v MachineGuid`, util.execOptsWin, function (error, stdout) {
+	          exec(`${sysdir}\\reg query "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Cryptography" /v MachineGuid`, util.execOptsWin, (error, stdout) => {
 	            parts = stdout.toString().split('\n\r')[0].split('REG_SZ');
-	            result.os = parts.length > 1 ? parts[1].replace(/\r+|\n+|\s+/ig, '').toLowerCase() : '';
+	            result.os = parts.length > 1 ? parts[1].replace(/\r+|\n+|\s+/gi, '').toLowerCase() : '';
 	            if (callback) {
 	              callback(result);
 	            }
@@ -4065,7 +4086,7 @@ function requireSystem () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -4310,7 +4331,7 @@ function requireSystem () {
 	        });
 	      }
 	      if (_darwin) {
-	        exec('ioreg -c IOPlatformExpertDevice -d 2',  (error, stdout) => {
+	        exec('ioreg -c IOPlatformExpertDevice -d 2', (error, stdout) => {
 	          if (!error) {
 	            const lines = stdout.toString().replace(/[<>"]/g, '').split('\n');
 
@@ -4930,7 +4951,7 @@ function requireCpu () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -6163,7 +6184,7 @@ function requireCpu () {
 	  const cores = [];
 	  const speeds = [];
 
-	  if (cpus?.length && Object.prototype.hasOwnProperty.call(cpus[0], 'speed')) {
+	  if (cpus && cpus.length && Object.prototype.hasOwnProperty.call(cpus[0], 'speed')) {
 	    for (let i in cpus) {
 	      speeds.push(cpus[i].speed > 100 ? (cpus[i].speed + 1) / 1000 : cpus[i].speed / 10);
 	    }
@@ -6181,7 +6202,7 @@ function requireCpu () {
 	    }
 	  }
 
-	  if (speeds?.length) {
+	  if (speeds && speeds.length) {
 	    try {
 	      for (const i in speeds) {
 	        avgFreq = avgFreq + speeds[i];
@@ -6470,7 +6491,7 @@ function requireCpu () {
 	          if (result.max) {
 	            result.max = Math.round(result.max * 100) / 100;
 	          }
-	          if (result?.cores.length) {
+	          if (result && result.cores && result.cores.length) {
 	            for (let i = 0; i < result.cores.length; i++) {
 	              result.cores[i] = Math.round(result.cores[i] * 100) / 100;
 	            }
@@ -6490,7 +6511,7 @@ function requireCpu () {
 	            // round to 2 digits
 	            result.chipset = Math.round(res.soc * 100) / 100;
 	          }
-	          if (res?.cpuDieTemps.length) {
+	          if (res && res.cpuDieTemps.length) {
 	            for (const temp of res.cpuDieTemps) {
 	              result.cores.push(Math.round(temp * 100) / 100);
 	            }
@@ -7129,7 +7150,7 @@ function requireCpu () {
 
 	      let result = 0;
 
-	      if (cpus?.length) {
+	      if (cpus && cpus.length) {
 	        for (let i = 0, len = cpus.length; i < len; i++) {
 	          const cpu = cpus[i].times;
 	          totalUser += cpu.user;
@@ -7176,7 +7197,7 @@ function requireMemory () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -7192,13 +7213,13 @@ function requireMemory () {
 
 	let _platform = process.platform;
 
-	const _linux = (_platform === 'linux' || _platform === 'android');
-	const _darwin = (_platform === 'darwin');
-	const _windows = (_platform === 'win32');
-	const _freebsd = (_platform === 'freebsd');
-	const _openbsd = (_platform === 'openbsd');
-	const _netbsd = (_platform === 'netbsd');
-	const _sunos = (_platform === 'sunos');
+	const _linux = _platform === 'linux' || _platform === 'android';
+	const _darwin = _platform === 'darwin';
+	const _windows = _platform === 'win32';
+	const _freebsd = _platform === 'freebsd';
+	const _openbsd = _platform === 'openbsd';
+	const _netbsd = _platform === 'netbsd';
+	const _sunos = _platform === 'sunos';
 
 	const RAM_manufacturers = {
 	  '00CE': 'Samsung Electronics Inc',
@@ -7210,24 +7231,24 @@ function requireMemory () {
 	  '04CB': 'A-DATA',
 	  '04CD': 'G.Skill International Enterprise',
 	  '059B': 'Crucial',
-	  '1315': 'Crucial',
+	  1315: 'Crucial',
 	  '2C00': 'Micron Technology Inc.',
-	  '5105': 'Qimonda AG i. In.',
+	  5105: 'Qimonda AG i. In.',
 	  '802C': 'Micron Technology Inc.',
 	  '80AD': 'Hynix Semiconductor Inc.',
 	  '80CE': 'Samsung Electronics Inc.',
-	  '8551': 'Qimonda AG i. In.',
+	  8551: 'Qimonda AG i. In.',
 	  '859B': 'Crucial',
-	  'AD00': 'Hynix Semiconductor Inc.',
-	  'CE00': 'Samsung Electronics Inc.',
-	  'SAMSUNG': 'Samsung Electronics Inc.',
-	  'HYNIX': 'Hynix Semiconductor Inc.',
+	  AD00: 'Hynix Semiconductor Inc.',
+	  CE00: 'Samsung Electronics Inc.',
+	  SAMSUNG: 'Samsung Electronics Inc.',
+	  HYNIX: 'Hynix Semiconductor Inc.',
 	  'G-SKILL': 'G-Skill International Enterprise',
 	  'G.SKILL': 'G-Skill International Enterprise',
-	  'TRANSCEND': 'Transcend Information',
-	  'APACER': 'Apacer Technology Inc',
-	  'MICRON': 'Micron Technology Inc.',
-	  'QIMONDA': 'Qimonda AG i. In.',
+	  TRANSCEND: 'Transcend Information',
+	  APACER: 'Apacer Technology Inc',
+	  MICRON: 'Micron Technology Inc.',
+	  QIMONDA: 'Qimonda AG i. In.'
 	};
 
 	// _______________________________________________________________________________________
@@ -7308,17 +7329,15 @@ function requireMemory () {
 	// SUnreclaim: 79352 kB
 
 	function mem(callback) {
-
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
-
 	      let result = {
 	        total: os.totalmem(),
 	        free: os.freemem(),
 	        used: os.totalmem() - os.freemem(),
 
-	        active: os.totalmem() - os.freemem(),     // temporarily (fallback)
-	        available: os.freemem(),                  // temporarily (fallback)
+	        active: os.totalmem() - os.freemem(), // temporarily (fallback)
+	        available: os.freemem(), // temporarily (fallback)
 	        buffers: 0,
 	        cached: 0,
 	        slab: 0,
@@ -7367,45 +7386,59 @@ function requireMemory () {
 	              result.reclaimable = parseInt(util.getValue(lines, 'sreclaimable'), 10);
 	              result.reclaimable = result.reclaimable ? result.reclaimable * 1024 : 0;
 	            }
-	            if (callback) { callback(result); }
+	            if (callback) {
+	              callback(result);
+	            }
 	            resolve(result);
 	          });
 	        } catch (e) {
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        }
 	      }
 	      if (_freebsd || _openbsd || _netbsd) {
 	        try {
-	          exec('/sbin/sysctl hw.realmem hw.physmem vm.stats.vm.v_page_count vm.stats.vm.v_wire_count vm.stats.vm.v_active_count vm.stats.vm.v_inactive_count vm.stats.vm.v_cache_count vm.stats.vm.v_free_count vm.stats.vm.v_page_size', function (error, stdout) {
-	            if (!error) {
-	              let lines = stdout.toString().split('\n');
-	              const pagesize = parseInt(util.getValue(lines, 'vm.stats.vm.v_page_size'), 10);
-	              const inactive = parseInt(util.getValue(lines, 'vm.stats.vm.v_inactive_count'), 10) * pagesize;
-	              const cache = parseInt(util.getValue(lines, 'vm.stats.vm.v_cache_count'), 10) * pagesize;
+	          exec(
+	            '/sbin/sysctl hw.realmem hw.physmem vm.stats.vm.v_page_count vm.stats.vm.v_wire_count vm.stats.vm.v_active_count vm.stats.vm.v_inactive_count vm.stats.vm.v_cache_count vm.stats.vm.v_free_count vm.stats.vm.v_page_size',
+	            function (error, stdout) {
+	              if (!error) {
+	                let lines = stdout.toString().split('\n');
+	                const pagesize = parseInt(util.getValue(lines, 'vm.stats.vm.v_page_size'), 10);
+	                const inactive = parseInt(util.getValue(lines, 'vm.stats.vm.v_inactive_count'), 10) * pagesize;
+	                const cache = parseInt(util.getValue(lines, 'vm.stats.vm.v_cache_count'), 10) * pagesize;
 
-	              result.total = parseInt(util.getValue(lines, 'hw.realmem'), 10);
-	              if (isNaN(result.total)) { result.total = parseInt(util.getValue(lines, 'hw.physmem'), 10); }
-	              result.free = parseInt(util.getValue(lines, 'vm.stats.vm.v_free_count'), 10) * pagesize;
-	              result.buffcache = inactive + cache;
-	              result.available = result.buffcache + result.free;
-	              result.active = result.total - result.free - result.buffcache;
+	                result.total = parseInt(util.getValue(lines, 'hw.realmem'), 10);
+	                if (isNaN(result.total)) {
+	                  result.total = parseInt(util.getValue(lines, 'hw.physmem'), 10);
+	                }
+	                result.free = parseInt(util.getValue(lines, 'vm.stats.vm.v_free_count'), 10) * pagesize;
+	                result.buffcache = inactive + cache;
+	                result.available = result.buffcache + result.free;
+	                result.active = result.total - result.free - result.buffcache;
 
-	              result.swaptotal = 0;
-	              result.swapfree = 0;
-	              result.swapused = 0;
-
+	                result.swaptotal = 0;
+	                result.swapfree = 0;
+	                result.swapused = 0;
+	              }
+	              if (callback) {
+	                callback(result);
+	              }
+	              resolve(result);
 	            }
-	            if (callback) { callback(result); }
-	            resolve(result);
-	          });
+	          );
 	        } catch (e) {
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        }
 	      }
 	      if (_sunos) {
-	        if (callback) { callback(result); }
+	        if (callback) {
+	          callback(result);
+	        }
 	        resolve(result);
 	      }
 	      if (_darwin) {
@@ -7431,19 +7464,29 @@ function requireMemory () {
 	                if (lines.length > 0) {
 	                  let firstline = lines[0].replace(/,/g, '.').replace(/M/g, '');
 	                  let lineArray = firstline.trim().split('  ');
-	                  lineArray.forEach(line => {
-	                    if (line.toLowerCase().indexOf('total') !== -1) { result.swaptotal = parseFloat(line.split('=')[1].trim()) * 1024 * 1024; }
-	                    if (line.toLowerCase().indexOf('used') !== -1) { result.swapused = parseFloat(line.split('=')[1].trim()) * 1024 * 1024; }
-	                    if (line.toLowerCase().indexOf('free') !== -1) { result.swapfree = parseFloat(line.split('=')[1].trim()) * 1024 * 1024; }
+	                  lineArray.forEach((line) => {
+	                    if (line.toLowerCase().indexOf('total') !== -1) {
+	                      result.swaptotal = parseFloat(line.split('=')[1].trim()) * 1024 * 1024;
+	                    }
+	                    if (line.toLowerCase().indexOf('used') !== -1) {
+	                      result.swapused = parseFloat(line.split('=')[1].trim()) * 1024 * 1024;
+	                    }
+	                    if (line.toLowerCase().indexOf('free') !== -1) {
+	                      result.swapfree = parseFloat(line.split('=')[1].trim()) * 1024 * 1024;
+	                    }
 	                  });
 	                }
 	              }
-	              if (callback) { callback(result); }
+	              if (callback) {
+	                callback(result);
+	              }
 	              resolve(result);
 	            });
 	          });
 	        } catch (e) {
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        }
 	      }
@@ -7453,7 +7496,10 @@ function requireMemory () {
 	        try {
 	          util.powerShell('Get-CimInstance Win32_PageFileUsage | Select AllocatedBaseSize, CurrentUsage').then((stdout, error) => {
 	            if (!error) {
-	              let lines = stdout.split('\r\n').filter(line => line.trim() !== '').filter((line, idx) => idx > 0);
+	              let lines = stdout
+	                .split('\r\n')
+	                .filter((line) => line.trim() !== '')
+	                .filter((line, idx) => idx > 0);
 	              lines.forEach(function (line) {
 	                if (line !== '') {
 	                  line = line.trim().split(/\s\s+/);
@@ -7466,11 +7512,15 @@ function requireMemory () {
 	            result.swapused = swapused * 1024 * 1024;
 	            result.swapfree = result.swaptotal - result.swapused;
 
-	            if (callback) { callback(result); }
+	            if (callback) {
+	              callback(result);
+	            }
 	            resolve(result);
 	          });
 	        } catch (e) {
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        }
 	      }
@@ -7481,129 +7531,134 @@ function requireMemory () {
 	memory.mem = mem;
 
 	function memLayout(callback) {
-
 	  function getManufacturer(manId) {
 	    const manIdSearch = manId.replace('0x', '').toUpperCase();
 	    if (manIdSearch.length >= 4 && {}.hasOwnProperty.call(RAM_manufacturers, manIdSearch)) {
-	      return (RAM_manufacturers[manIdSearch]);
+	      return RAM_manufacturers[manIdSearch];
 	    }
 	    return manId;
 	  }
 
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
-
 	      let result = [];
 
 	      if (_linux || _freebsd || _openbsd || _netbsd) {
-	        exec('export LC_ALL=C; dmidecode -t memory 2>/dev/null | grep -iE "Size:|Type|Speed|Manufacturer|Form Factor|Locator|Memory Device|Serial Number|Voltage|Part Number"; unset LC_ALL', function (error, stdout) {
-	          if (!error) {
-	            let devices = stdout.toString().split('Memory Device');
-	            devices.shift();
-	            devices.forEach(function (device) {
-	              let lines = device.split('\n');
-	              const sizeString = util.getValue(lines, 'Size');
-	              const size = sizeString.indexOf('GB') >= 0 ? parseInt(sizeString, 10) * 1024 * 1024 * 1024 : parseInt(sizeString, 10) * 1024 * 1024;
-	              let bank = util.getValue(lines, 'Bank Locator');
-	              if (bank.toLowerCase().indexOf('bad') >= 0) {
-	                bank = '';
-	              }
-	              if (parseInt(util.getValue(lines, 'Size'), 10) > 0) {
-	                const totalWidth = util.toInt(util.getValue(lines, 'Total Width'));
-	                const dataWidth = util.toInt(util.getValue(lines, 'Data Width'));
-	                result.push({
-	                  size,
-	                  bank,
-	                  type: util.getValue(lines, 'Type:'),
-	                  ecc: dataWidth && totalWidth ? totalWidth > dataWidth : false,
-	                  clockSpeed: (util.getValue(lines, 'Configured Clock Speed:') ? parseInt(util.getValue(lines, 'Configured Clock Speed:'), 10) : (util.getValue(lines, 'Speed:') ? parseInt(util.getValue(lines, 'Speed:'), 10) : null)),
-	                  formFactor: util.getValue(lines, 'Form Factor:'),
-	                  manufacturer: getManufacturer(util.getValue(lines, 'Manufacturer:')),
-	                  partNum: util.getValue(lines, 'Part Number:'),
-	                  serialNum: util.getValue(lines, 'Serial Number:'),
-	                  voltageConfigured: parseFloat(util.getValue(lines, 'Configured Voltage:')) || null,
-	                  voltageMin: parseFloat(util.getValue(lines, 'Minimum Voltage:')) || null,
-	                  voltageMax: parseFloat(util.getValue(lines, 'Maximum Voltage:')) || null,
-	                });
-	              } else {
-	                result.push({
-	                  size: 0,
-	                  bank,
-	                  type: 'Empty',
-	                  ecc: null,
-	                  clockSpeed: 0,
-	                  formFactor: util.getValue(lines, 'Form Factor:'),
-	                  partNum: '',
-	                  serialNum: '',
-	                  voltageConfigured: null,
-	                  voltageMin: null,
-	                  voltageMax: null,
-	                });
-	              }
-	            });
-	          }
-	          if (!result.length) {
-	            result.push({
-	              size: os.totalmem(),
-	              bank: '',
-	              type: '',
-	              ecc: null,
-	              clockSpeed: 0,
-	              formFactor: '',
-	              partNum: '',
-	              serialNum: '',
-	              voltageConfigured: null,
-	              voltageMin: null,
-	              voltageMax: null,
-	            });
-
-	            // Try Raspberry PI
-	            try {
-	              let stdout = execSync('cat /proc/cpuinfo 2>/dev/null', util.execOptsLinux);
-	              let lines = stdout.toString().split('\n');
-	              let version = util.getValue(lines, 'revision', ':', true).toLowerCase();
-
-	              if (util.isRaspberry(lines)) {
-
-	                const clockSpeed = {
-	                  '0': 400,
-	                  '1': 450,
-	                  '2': 450,
-	                  '3': 3200,
-	                  '4': 4267
-	                };
-	                result[0].type = 'LPDDR2';
-	                result[0].type = version && version[2] && (version[2] === '3') ? 'LPDDR4' : result[0].type;
-	                result[0].type = version && version[2] && (version[2] === '4') ? 'LPDDR4X' : result[0].type;
-	                result[0].ecc = false;
-	                result[0].clockSpeed = version && version[2] && clockSpeed[version[2]] || 400;
-	                result[0].clockSpeed = version && version[4] && version[4] === 'd' ? 500 : result[0].clockSpeed;
-	                result[0].formFactor = 'SoC';
-
-	                stdout = execSync('vcgencmd get_config sdram_freq 2>/dev/null', util.execOptsLinux);
-	                lines = stdout.toString().split('\n');
-	                let freq = parseInt(util.getValue(lines, 'sdram_freq', '=', true), 10) || 0;
-	                if (freq) {
-	                  result[0].clockSpeed = freq;
+	        exec(
+	          'export LC_ALL=C; dmidecode -t memory 2>/dev/null | grep -iE "Size:|Type|Speed|Manufacturer|Form Factor|Locator|Memory Device|Serial Number|Voltage|Part Number"; unset LC_ALL',
+	          function (error, stdout) {
+	            if (!error) {
+	              let devices = stdout.toString().split('Memory Device');
+	              devices.shift();
+	              devices.forEach(function (device) {
+	                let lines = device.split('\n');
+	                const sizeString = util.getValue(lines, 'Size');
+	                const size = sizeString.indexOf('GB') >= 0 ? parseInt(sizeString, 10) * 1024 * 1024 * 1024 : parseInt(sizeString, 10) * 1024 * 1024;
+	                let bank = util.getValue(lines, 'Bank Locator');
+	                if (bank.toLowerCase().indexOf('bad') >= 0) {
+	                  bank = '';
 	                }
-
-	                stdout = execSync('vcgencmd measure_volts sdram_p 2>/dev/null', util.execOptsLinux);
-	                lines = stdout.toString().split('\n');
-	                let voltage = parseFloat(util.getValue(lines, 'volt', '=', true)) || 0;
-	                if (voltage) {
-	                  result[0].voltageConfigured = voltage;
-	                  result[0].voltageMin = voltage;
-	                  result[0].voltageMax = voltage;
+	                if (parseInt(util.getValue(lines, 'Size'), 10) > 0) {
+	                  const totalWidth = util.toInt(util.getValue(lines, 'Total Width'));
+	                  const dataWidth = util.toInt(util.getValue(lines, 'Data Width'));
+	                  result.push({
+	                    size,
+	                    bank,
+	                    type: util.getValue(lines, 'Type:'),
+	                    ecc: dataWidth && totalWidth ? totalWidth > dataWidth : false,
+	                    clockSpeed: util.getValue(lines, 'Configured Clock Speed:')
+	                      ? parseInt(util.getValue(lines, 'Configured Clock Speed:'), 10)
+	                      : util.getValue(lines, 'Speed:')
+	                        ? parseInt(util.getValue(lines, 'Speed:'), 10)
+	                        : null,
+	                    formFactor: util.getValue(lines, 'Form Factor:'),
+	                    manufacturer: getManufacturer(util.getValue(lines, 'Manufacturer:')),
+	                    partNum: util.getValue(lines, 'Part Number:'),
+	                    serialNum: util.getValue(lines, 'Serial Number:'),
+	                    voltageConfigured: parseFloat(util.getValue(lines, 'Configured Voltage:')) || null,
+	                    voltageMin: parseFloat(util.getValue(lines, 'Minimum Voltage:')) || null,
+	                    voltageMax: parseFloat(util.getValue(lines, 'Maximum Voltage:')) || null
+	                  });
+	                } else {
+	                  result.push({
+	                    size: 0,
+	                    bank,
+	                    type: 'Empty',
+	                    ecc: null,
+	                    clockSpeed: 0,
+	                    formFactor: util.getValue(lines, 'Form Factor:'),
+	                    partNum: '',
+	                    serialNum: '',
+	                    voltageConfigured: null,
+	                    voltageMin: null,
+	                    voltageMax: null
+	                  });
 	                }
-	              }
-	            } catch (e) {
-	              util.noop();
+	              });
 	            }
+	            if (!result.length) {
+	              result.push({
+	                size: os.totalmem(),
+	                bank: '',
+	                type: '',
+	                ecc: null,
+	                clockSpeed: 0,
+	                formFactor: '',
+	                partNum: '',
+	                serialNum: '',
+	                voltageConfigured: null,
+	                voltageMin: null,
+	                voltageMax: null
+	              });
 
+	              // Try Raspberry PI
+	              try {
+	                let stdout = execSync('cat /proc/cpuinfo 2>/dev/null', util.execOptsLinux);
+	                let lines = stdout.toString().split('\n');
+	                let version = util.getValue(lines, 'revision', ':', true).toLowerCase();
+
+	                if (util.isRaspberry(lines)) {
+	                  const clockSpeed = {
+	                    0: 400,
+	                    1: 450,
+	                    2: 450,
+	                    3: 3200,
+	                    4: 4267
+	                  };
+	                  result[0].type = 'LPDDR2';
+	                  result[0].type = version && version[2] && version[2] === '3' ? 'LPDDR4' : result[0].type;
+	                  result[0].type = version && version[2] && version[2] === '4' ? 'LPDDR4X' : result[0].type;
+	                  result[0].ecc = false;
+	                  result[0].clockSpeed = (version && version[2] && clockSpeed[version[2]]) || 400;
+	                  result[0].clockSpeed = version && version[4] && version[4] === 'd' ? 500 : result[0].clockSpeed;
+	                  result[0].formFactor = 'SoC';
+
+	                  stdout = execSync('vcgencmd get_config sdram_freq 2>/dev/null', util.execOptsLinux);
+	                  lines = stdout.toString().split('\n');
+	                  let freq = parseInt(util.getValue(lines, 'sdram_freq', '=', true), 10) || 0;
+	                  if (freq) {
+	                    result[0].clockSpeed = freq;
+	                  }
+
+	                  stdout = execSync('vcgencmd measure_volts sdram_p 2>/dev/null', util.execOptsLinux);
+	                  lines = stdout.toString().split('\n');
+	                  let voltage = parseFloat(util.getValue(lines, 'volt', '=', true)) || 0;
+	                  if (voltage) {
+	                    result[0].voltageConfigured = voltage;
+	                    result[0].voltageMin = voltage;
+	                    result[0].voltageMax = voltage;
+	                  }
+	                }
+	              } catch (e) {
+	                util.noop();
+	              }
+	            }
+	            if (callback) {
+	              callback(result);
+	            }
+	            resolve(result);
 	          }
-	          if (callback) { callback(result); }
-	          resolve(result);
-	        });
+	        );
 	      }
 
 	      if (_darwin) {
@@ -7635,7 +7690,7 @@ function requireMemory () {
 	                  serialNum: util.getValue(lines, '          Serial Number:'),
 	                  voltageConfigured: null,
 	                  voltageMin: null,
-	                  voltageMax: null,
+	                  voltageMax: null
 	                });
 	              } else {
 	                result.push({
@@ -7650,7 +7705,7 @@ function requireMemory () {
 	                  serialNum: '',
 	                  voltageConfigured: null,
 	                  voltageMin: null,
-	                  voltageMax: null,
+	                  voltageMax: null
 	                });
 	              }
 	            });
@@ -7673,59 +7728,73 @@ function requireMemory () {
 	                serialNum: '',
 	                voltageConfigured: null,
 	                voltageMin: null,
-	                voltageMax: null,
+	                voltageMax: null
 	              });
-
 	            }
 	          }
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        });
 	      }
 	      if (_sunos) {
-	        if (callback) { callback(result); }
+	        if (callback) {
+	          callback(result);
+	        }
 	        resolve(result);
 	      }
 	      if (_windows) {
 	        // https://www.dmtf.org/sites/default/files/standards/documents/DSP0134_3.4.0a.pdf
-	        const memoryTypes = 'Unknown|Other|DRAM|Synchronous DRAM|Cache DRAM|EDO|EDRAM|VRAM|SRAM|RAM|ROM|FLASH|EEPROM|FEPROM|EPROM|CDRAM|3DRAM|SDRAM|SGRAM|RDRAM|DDR|DDR2|DDR2 FB-DIMM|Reserved|DDR3|FBD2|DDR4|LPDDR|LPDDR2|LPDDR3|LPDDR4|Logical non-volatile device|HBM|HBM2|DDR5|LPDDR5'.split('|');
+	        const memoryTypes =
+	          'Unknown|Other|DRAM|Synchronous DRAM|Cache DRAM|EDO|EDRAM|VRAM|SRAM|RAM|ROM|FLASH|EEPROM|FEPROM|EPROM|CDRAM|3DRAM|SDRAM|SGRAM|RDRAM|DDR|DDR2|DDR2 FB-DIMM|Reserved|DDR3|FBD2|DDR4|LPDDR|LPDDR2|LPDDR3|LPDDR4|Logical non-volatile device|HBM|HBM2|DDR5|LPDDR5'.split(
+	            '|'
+	          );
 	        const FormFactors = 'Unknown|Other|SIP|DIP|ZIP|SOJ|Proprietary|SIMM|DIMM|TSOP|PGA|RIMM|SODIMM|SRIMM|SMD|SSMP|QFP|TQFP|SOIC|LCC|PLCC|BGA|FPBGA|LGA'.split('|');
 
 	        try {
-	          util.powerShell('Get-CimInstance Win32_PhysicalMemory | select DataWidth,TotalWidth,Capacity,BankLabel,MemoryType,SMBIOSMemoryType,ConfiguredClockSpeed,Speed,FormFactor,Manufacturer,PartNumber,SerialNumber,ConfiguredVoltage,MinVoltage,MaxVoltage,Tag | fl').then((stdout, error) => {
-	            if (!error) {
-	              let devices = stdout.toString().split(/\n\s*\n/);
-	              devices.shift();
-	              devices.forEach(function (device) {
-	                let lines = device.split('\r\n');
-	                const dataWidth = util.toInt(util.getValue(lines, 'DataWidth', ':'));
-	                const totalWidth = util.toInt(util.getValue(lines, 'TotalWidth', ':'));
-	                const size = parseInt(util.getValue(lines, 'Capacity', ':'), 10) || 0;
-	                const tag = util.getValue(lines, 'Tag', ':');
-	                const tagInt = util.splitByNumber(tag);
-	                if (size) {
-	                  result.push({
-	                    size,
-	                    bank: util.getValue(lines, 'BankLabel', ':') + (tagInt[1] ? '/' + tagInt[1] : ''), // BankLabel
-	                    type: memoryTypes[parseInt(util.getValue(lines, 'MemoryType', ':'), 10) || parseInt(util.getValue(lines, 'SMBIOSMemoryType', ':'), 10)],
-	                    ecc: dataWidth && totalWidth ? totalWidth > dataWidth : false,
-	                    clockSpeed: parseInt(util.getValue(lines, 'ConfiguredClockSpeed', ':'), 10) || parseInt(util.getValue(lines, 'Speed', ':'), 10) || 0,
-	                    formFactor: FormFactors[parseInt(util.getValue(lines, 'FormFactor', ':'), 10) || 0],
-	                    manufacturer: getManufacturer(util.getValue(lines, 'Manufacturer', ':')),
-	                    partNum: util.getValue(lines, 'PartNumber', ':'),
-	                    serialNum: util.getValue(lines, 'SerialNumber', ':'),
-	                    voltageConfigured: (parseInt(util.getValue(lines, 'ConfiguredVoltage', ':'), 10) || 0) / 1000.0,
-	                    voltageMin: (parseInt(util.getValue(lines, 'MinVoltage', ':'), 10) || 0) / 1000.0,
-	                    voltageMax: (parseInt(util.getValue(lines, 'MaxVoltage', ':'), 10) || 0) / 1000.0,
-	                  });
-	                }
-	              });
-	            }
-	            if (callback) { callback(result); }
-	            resolve(result);
-	          });
+	          util
+	            .powerShell(
+	              'Get-CimInstance Win32_PhysicalMemory | select DataWidth,TotalWidth,Capacity,BankLabel,MemoryType,SMBIOSMemoryType,ConfiguredClockSpeed,Speed,FormFactor,Manufacturer,PartNumber,SerialNumber,ConfiguredVoltage,MinVoltage,MaxVoltage,Tag | fl'
+	            )
+	            .then((stdout, error) => {
+	              if (!error) {
+	                let devices = stdout.toString().split(/\n\s*\n/);
+	                devices.shift();
+	                devices.forEach(function (device) {
+	                  let lines = device.split('\r\n');
+	                  const dataWidth = util.toInt(util.getValue(lines, 'DataWidth', ':'));
+	                  const totalWidth = util.toInt(util.getValue(lines, 'TotalWidth', ':'));
+	                  const size = parseInt(util.getValue(lines, 'Capacity', ':'), 10) || 0;
+	                  const tag = util.getValue(lines, 'Tag', ':');
+	                  const tagInt = util.splitByNumber(tag);
+	                  if (size) {
+	                    result.push({
+	                      size,
+	                      bank: util.getValue(lines, 'BankLabel', ':') + (tagInt[1] ? '/' + tagInt[1] : ''), // BankLabel
+	                      type: memoryTypes[parseInt(util.getValue(lines, 'MemoryType', ':'), 10) || parseInt(util.getValue(lines, 'SMBIOSMemoryType', ':'), 10)],
+	                      ecc: dataWidth && totalWidth ? totalWidth > dataWidth : false,
+	                      clockSpeed: parseInt(util.getValue(lines, 'ConfiguredClockSpeed', ':'), 10) || parseInt(util.getValue(lines, 'Speed', ':'), 10) || 0,
+	                      formFactor: FormFactors[parseInt(util.getValue(lines, 'FormFactor', ':'), 10) || 0],
+	                      manufacturer: getManufacturer(util.getValue(lines, 'Manufacturer', ':')),
+	                      partNum: util.getValue(lines, 'PartNumber', ':'),
+	                      serialNum: util.getValue(lines, 'SerialNumber', ':'),
+	                      voltageConfigured: (parseInt(util.getValue(lines, 'ConfiguredVoltage', ':'), 10) || 0) / 1000.0,
+	                      voltageMin: (parseInt(util.getValue(lines, 'MinVoltage', ':'), 10) || 0) / 1000.0,
+	                      voltageMax: (parseInt(util.getValue(lines, 'MaxVoltage', ':'), 10) || 0) / 1000.0
+	                    });
+	                  }
+	                });
+	              }
+	              if (callback) {
+	                callback(result);
+	              }
+	              resolve(result);
+	            });
 	        } catch (e) {
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        }
 	      }
@@ -7749,7 +7818,7 @@ function requireBattery () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -7761,19 +7830,20 @@ function requireBattery () {
 	const fs = require$$1$1;
 	const util = requireUtil$7();
 
-	let _platform = process.platform;
+	const _platform = process.platform;
 
-	const _linux = (_platform === 'linux' || _platform === 'android');
-	const _darwin = (_platform === 'darwin');
-	const _windows = (_platform === 'win32');
-	const _freebsd = (_platform === 'freebsd');
-	const _openbsd = (_platform === 'openbsd');
-	const _netbsd = (_platform === 'netbsd');
-	const _sunos = (_platform === 'sunos');
+	const _linux = _platform === 'linux' || _platform === 'android';
+	const _darwin = _platform === 'darwin';
+	const _windows = _platform === 'win32';
+	const _freebsd = _platform === 'freebsd';
+	const _openbsd = _platform === 'openbsd';
+	const _netbsd = _platform === 'netbsd';
+	const _sunos = _platform === 'sunos';
 
 	function parseWinBatteryPart(lines, designedCapacity, fullChargeCapacity) {
 	  const result = {};
-	  let status = util.getValue(lines, 'BatteryStatus', ':').trim();
+	  let status = parseInt(util.getValue(lines, 'BatteryStatus', ':').trim(), 10) || 0;
+	  // let status = util.getValue(lines, 'BatteryStatus', ':').trim();
 	  // 1 = "Discharging"
 	  // 2 = "On A/C"
 	  // 3 = "Fully Charged"
@@ -7786,16 +7856,16 @@ function requireBattery () {
 	  // 10 = "Undefined"
 	  // 11 = "Partially Charged"
 	  if (status >= 0) {
-	    const statusValue = status ? parseInt(status) : 0;
+	    const statusValue = status;
 	    result.status = statusValue;
 	    result.hasBattery = true;
 	    result.maxCapacity = fullChargeCapacity || parseInt(util.getValue(lines, 'DesignCapacity', ':') || 0);
 	    result.designedCapacity = parseInt(util.getValue(lines, 'DesignCapacity', ':') || designedCapacity);
-	    result.voltage = parseInt(util.getValue(lines, 'DesignVoltage', ':') || 0) / 1000.0;
+	    result.voltage = (parseInt(util.getValue(lines, 'DesignVoltage', ':'), 10) || 0) / 1000;
 	    result.capacityUnit = 'mWh';
-	    result.percent = parseInt(util.getValue(lines, 'EstimatedChargeRemaining', ':') || 0);
-	    result.currentCapacity = parseInt(result.maxCapacity * result.percent / 100);
-	    result.isCharging = (statusValue >= 6 && statusValue <= 9) || statusValue === 11 || ((statusValue !== 3) && (statusValue !== 1) && result.percent < 100);
+	    result.percent = parseInt(util.getValue(lines, 'EstimatedChargeRemaining', ':'), 10) || 0;
+	    result.currentCapacity = parseInt((result.maxCapacity * result.percent) / 100);
+	    result.isCharging = (statusValue >= 6 && statusValue <= 9) || statusValue === 11 || (statusValue !== 3 && statusValue !== 1 && result.percent < 100);
 	    result.acConnected = result.isCharging || statusValue === 2;
 	    result.model = util.getValue(lines, 'DeviceID', ':');
 	  } else {
@@ -7805,9 +7875,8 @@ function requireBattery () {
 	  return result;
 	}
 
-	battery = function (callback) {
-
-	  return new Promise((resolve) => {
+	battery = (callback) =>
+	  new Promise((resolve) => {
 	    process.nextTick(() => {
 	      let result = {
 	        hasBattery: false,
@@ -7849,22 +7918,24 @@ function requireBattery () {
 	        }
 
 	        if (battery_path) {
-	          fs.readFile(battery_path + 'uevent', function (error, stdout) {
+	          fs.readFile(battery_path + 'uevent', (error, stdout) => {
 	            if (!error) {
 	              let lines = stdout.toString().split('\n');
 
-	              result.isCharging = (util.getValue(lines, 'POWER_SUPPLY_STATUS', '=').toLowerCase() === 'charging');
+	              result.isCharging = util.getValue(lines, 'POWER_SUPPLY_STATUS', '=').toLowerCase() === 'charging';
 	              result.acConnected = acConnected || result.isCharging;
 	              result.voltage = parseInt('0' + util.getValue(lines, 'POWER_SUPPLY_VOLTAGE_NOW', '='), 10) / 1000000.0;
 	              result.capacityUnit = result.voltage ? 'mWh' : 'mAh';
 	              result.cycleCount = parseInt('0' + util.getValue(lines, 'POWER_SUPPLY_CYCLE_COUNT', '='), 10);
-	              result.maxCapacity = Math.round(parseInt('0' + util.getValue(lines, 'POWER_SUPPLY_CHARGE_FULL', '=', true, true), 10) / 1000.0 * (result.voltage || 1));
+	              result.maxCapacity = Math.round((parseInt('0' + util.getValue(lines, 'POWER_SUPPLY_CHARGE_FULL', '=', true, true), 10) / 1000.0) * (result.voltage || 1));
 	              const desingedMinVoltage = parseInt('0' + util.getValue(lines, 'POWER_SUPPLY_VOLTAGE_MIN_DESIGN', '='), 10) / 1000000.0;
-	              result.designedCapacity = Math.round(parseInt('0' + util.getValue(lines, 'POWER_SUPPLY_CHARGE_FULL_DESIGN', '=', true, true), 10) / 1000.0 * (desingedMinVoltage || result.voltage || 1));
-	              result.currentCapacity = Math.round(parseInt('0' + util.getValue(lines, 'POWER_SUPPLY_CHARGE_NOW', '='), 10) / 1000.0 * (result.voltage || 1));
+	              result.designedCapacity = Math.round(
+	                (parseInt('0' + util.getValue(lines, 'POWER_SUPPLY_CHARGE_FULL_DESIGN', '=', true, true), 10) / 1000.0) * (desingedMinVoltage || result.voltage || 1)
+	              );
+	              result.currentCapacity = Math.round((parseInt('0' + util.getValue(lines, 'POWER_SUPPLY_CHARGE_NOW', '='), 10) / 1000.0) * (result.voltage || 1));
 	              if (!result.maxCapacity) {
 	                result.maxCapacity = parseInt('0' + util.getValue(lines, 'POWER_SUPPLY_ENERGY_FULL', '=', true, true), 10) / 1000.0;
-	                result.designedCapacity = parseInt('0' + util.getValue(lines, 'POWER_SUPPLY_ENERGY_FULL_DESIGN', '=', true, true), 10) / 1000.0 | result.maxCapacity;
+	                result.designedCapacity = (parseInt('0' + util.getValue(lines, 'POWER_SUPPLY_ENERGY_FULL_DESIGN', '=', true, true), 10) / 1000.0) | result.maxCapacity;
 	                result.currentCapacity = parseInt('0' + util.getValue(lines, 'POWER_SUPPLY_ENERGY_NOW', '='), 10) / 1000.0;
 	              }
 	              const percent = util.getValue(lines, 'POWER_SUPPLY_CAPACITY', '=');
@@ -7877,41 +7948,47 @@ function requireBattery () {
 	              if (result.maxCapacity && result.currentCapacity) {
 	                result.hasBattery = true;
 	                if (!percent) {
-	                  result.percent = 100.0 * result.currentCapacity / result.maxCapacity;
+	                  result.percent = (100.0 * result.currentCapacity) / result.maxCapacity;
 	                }
 	              }
 	              if (result.isCharging) {
 	                result.hasBattery = true;
 	              }
 	              if (energy && power) {
-	                result.timeRemaining = Math.floor(energy / power * 60);
+	                result.timeRemaining = Math.floor((energy / power) * 60);
 	              } else if (current && charge) {
-	                result.timeRemaining = Math.floor(charge / current * 60);
+	                result.timeRemaining = Math.floor((charge / current) * 60);
 	              } else if (current && result.currentCapacity) {
-	                result.timeRemaining = Math.floor(result.currentCapacity / current * 60);
+	                result.timeRemaining = Math.floor((result.currentCapacity / current) * 60);
 	              }
 	              result.type = util.getValue(lines, 'POWER_SUPPLY_TECHNOLOGY', '=');
 	              result.model = util.getValue(lines, 'POWER_SUPPLY_MODEL_NAME', '=');
 	              result.manufacturer = util.getValue(lines, 'POWER_SUPPLY_MANUFACTURER', '=');
 	              result.serial = util.getValue(lines, 'POWER_SUPPLY_SERIAL_NUMBER', '=');
-	              if (callback) { callback(result); }
+	              if (callback) {
+	                callback(result);
+	              }
 	              resolve(result);
 	            } else {
-	              if (callback) { callback(result); }
+	              if (callback) {
+	                callback(result);
+	              }
 	              resolve(result);
 	            }
 	          });
 	        } else {
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        }
 	      }
 	      if (_freebsd || _openbsd || _netbsd) {
-	        exec('sysctl -i hw.acpi.battery hw.acpi.acline', function (error, stdout) {
+	        exec('sysctl -i hw.acpi.battery hw.acpi.acline', (error, stdout) => {
 	          let lines = stdout.toString().split('\n');
 	          const batteries = parseInt('0' + util.getValue(lines, 'hw.acpi.battery.units'), 10);
 	          const percent = parseInt('0' + util.getValue(lines, 'hw.acpi.battery.life'), 10);
-	          result.hasBattery = (batteries > 0);
+	          result.hasBattery = batteries > 0;
 	          result.cycleCount = null;
 	          result.isCharging = util.getValue(lines, 'hw.acpi.acline') !== '1';
 	          result.acConnected = result.isCharging;
@@ -7919,55 +7996,64 @@ function requireBattery () {
 	          result.currentCapacity = null;
 	          result.capacityUnit = 'unknown';
 	          result.percent = batteries ? percent : null;
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        });
 	      }
 
 	      if (_darwin) {
-	        exec('ioreg -n AppleSmartBattery -r | egrep "CycleCount|IsCharging|DesignCapacity|MaxCapacity|CurrentCapacity|DeviceName|BatterySerialNumber|Serial|TimeRemaining|Voltage"; pmset -g batt | grep %', function (error, stdout) {
-	          if (stdout) {
-	            let lines = stdout.toString().replace(/ +/g, '').replace(/"+/g, '').replace(/-/g, '').split('\n');
-	            result.cycleCount = parseInt('0' + util.getValue(lines, 'cyclecount', '='), 10);
-	            result.voltage = parseInt('0' + util.getValue(lines, 'voltage', '='), 10) / 1000.0;
-	            result.capacityUnit = result.voltage ? 'mWh' : 'mAh';
-	            result.maxCapacity = Math.round(parseInt('0' + util.getValue(lines, 'applerawmaxcapacity', '='), 10) * (result.voltage || 1));
-	            result.currentCapacity = Math.round(parseInt('0' + util.getValue(lines, 'applerawcurrentcapacity', '='), 10) * (result.voltage || 1));
-	            result.designedCapacity = Math.round(parseInt('0' + util.getValue(lines, 'DesignCapacity', '='), 10) * (result.voltage || 1));
-	            result.manufacturer = 'Apple';
-	            result.serial = util.getValue(lines, 'BatterySerialNumber', '=') || util.getValue(lines, 'Serial', '=');
-	            result.model = util.getValue(lines, 'DeviceName', '=');
-	            let percent = null;
-	            const line = util.getValue(lines, 'internal', 'Battery');
-	            let parts = line.split(';');
-	            if (parts && parts[0]) {
-	              let parts2 = parts[0].split('\t');
-	              if (parts2 && parts2[1]) {
-	                percent = parseFloat(parts2[1].trim().replace(/%/g, ''));
+	        exec(
+	          'ioreg -n AppleSmartBattery -r | egrep "CycleCount|IsCharging|DesignCapacity|MaxCapacity|CurrentCapacity|DeviceName|BatterySerialNumber|Serial|TimeRemaining|Voltage"; pmset -g batt | grep %',
+	          (error, stdout) => {
+	            if (stdout) {
+	              let lines = stdout.toString().replace(/ +/g, '').replace(/"+/g, '').replace(/-/g, '').split('\n');
+	              result.cycleCount = parseInt('0' + util.getValue(lines, 'cyclecount', '='), 10);
+	              result.voltage = parseInt('0' + util.getValue(lines, 'voltage', '='), 10) / 1000.0;
+	              result.capacityUnit = result.voltage ? 'mWh' : 'mAh';
+	              result.maxCapacity = Math.round(parseInt('0' + util.getValue(lines, 'applerawmaxcapacity', '='), 10) * (result.voltage || 1));
+	              result.currentCapacity = Math.round(parseInt('0' + util.getValue(lines, 'applerawcurrentcapacity', '='), 10) * (result.voltage || 1));
+	              result.designedCapacity = Math.round(parseInt('0' + util.getValue(lines, 'DesignCapacity', '='), 10) * (result.voltage || 1));
+	              result.manufacturer = 'Apple';
+	              result.serial = util.getValue(lines, 'BatterySerialNumber', '=') || util.getValue(lines, 'Serial', '=');
+	              result.model = util.getValue(lines, 'DeviceName', '=');
+	              let percent = null;
+	              const line = util.getValue(lines, 'internal', 'Battery');
+	              let parts = line.split(';');
+	              if (parts && parts[0]) {
+	                let parts2 = parts[0].split('\t');
+	                if (parts2 && parts2[1]) {
+	                  percent = parseFloat(parts2[1].trim().replace(/%/g, ''));
+	                }
+	              }
+	              if (parts && parts[1]) {
+	                result.isCharging = parts[1].trim() === 'charging';
+	                result.acConnected = parts[1].trim() !== 'discharging';
+	              } else {
+	                result.isCharging = util.getValue(lines, 'ischarging', '=').toLowerCase() === 'yes';
+	                result.acConnected = result.isCharging;
+	              }
+	              if (result.maxCapacity && result.currentCapacity) {
+	                result.hasBattery = true;
+	                result.type = 'Li-ion';
+	                result.percent = percent !== null ? percent : Math.round((100.0 * result.currentCapacity) / result.maxCapacity);
+	                if (!result.isCharging) {
+	                  result.timeRemaining = parseInt('0' + util.getValue(lines, 'TimeRemaining', '='), 10);
+	                }
 	              }
 	            }
-	            if (parts && parts[1]) {
-	              result.isCharging = (parts[1].trim() === 'charging');
-	              result.acConnected = (parts[1].trim() !== 'discharging');
-	            } else {
-	              result.isCharging = util.getValue(lines, 'ischarging', '=').toLowerCase() === 'yes';
-	              result.acConnected = result.isCharging;
+	            if (callback) {
+	              callback(result);
 	            }
-	            if (result.maxCapacity && result.currentCapacity) {
-	              result.hasBattery = true;
-	              result.type = 'Li-ion';
-	              result.percent = percent !== null ? percent : Math.round(100.0 * result.currentCapacity / result.maxCapacity);
-	              if (!result.isCharging) {
-	                result.timeRemaining = parseInt('0' + util.getValue(lines, 'TimeRemaining', '='), 10);
-	              }
-	            }
+	            resolve(result);
 	          }
-	          if (callback) { callback(result); }
-	          resolve(result);
-	        });
+	        );
 	      }
 	      if (_sunos) {
-	        if (callback) { callback(result); }
+	        if (callback) {
+	          callback(result);
+	        }
 	        resolve(result);
 	      }
 	      if (_windows) {
@@ -7976,30 +8062,30 @@ function requireBattery () {
 	          workload.push(util.powerShell('Get-CimInstance Win32_Battery | select BatteryStatus, DesignCapacity, DesignVoltage, EstimatedChargeRemaining, DeviceID | fl'));
 	          workload.push(util.powerShell('(Get-WmiObject -Class BatteryStaticData -Namespace ROOT/WMI).DesignedCapacity'));
 	          workload.push(util.powerShell('(Get-CimInstance -Class BatteryFullChargedCapacity -Namespace ROOT/WMI).FullChargedCapacity'));
-	          util.promiseAll(
-	            workload
-	          ).then((data) => {
+	          util.promiseAll(workload).then((data) => {
 	            if (data) {
-	              let parts = data.results[0].split(/\n\s*\n/);
-	              let batteries = [];
-	              const hasValue = value => /\S/.test(value);
+	              const parts = data.results[0].split(/\n\s*\n/);
+	              const batteries = [];
+	              const hasValue = (value) => /\S/.test(value);
 	              for (let i = 0; i < parts.length; i++) {
-	                if (hasValue(parts[i]) && (!batteries.length || !hasValue(parts[i - 1]))) {
-	                  batteries.push([]);
-	                }
+	                // if (hasValue(parts[i]) && (!batteries.length || !hasValue(parts[i - 1]))) {
+	                //   batteries.push([]);
+	                // }
 	                if (hasValue(parts[i])) {
-	                  batteries[batteries.length - 1].push(parts[i]);
+	                  // batteries[batteries.length - 1].push(parts[i]);
+	                  batteries.push(parts[i]);
 	                }
 	              }
-	              let designCapacities = data.results[1].split('\r\n').filter(e => e);
-	              let fullChargeCapacities = data.results[2].split('\r\n').filter(e => e);
+	              const designCapacities = data.results[1].split('\r\n').filter((e) => e);
+	              const fullChargeCapacities = data.results[2].split('\r\n').filter((e) => e);
 	              if (batteries.length) {
 	                let first = false;
-	                let additionalBatteries = [];
+	                const additionalBatteries = [];
 	                for (let i = 0; i < batteries.length; i++) {
-	                  let lines = batteries[i][0].split('\r\n');
-	                  const designedCapacity = designCapacities && designCapacities.length >= (i + 1) && designCapacities[i] ? util.toInt(designCapacities[i]) : 0;
-	                  const fullChargeCapacity = fullChargeCapacities && fullChargeCapacities.length >= (i + 1) && fullChargeCapacities[i] ? util.toInt(fullChargeCapacities[i]) : 0;
+	                  // let lines = batteries[i][0].split('\r\n');
+	                  const lines = batteries[i].split('\r\n');
+	                  const designedCapacity = designCapacities && designCapacities.length >= i + 1 && designCapacities[i] ? util.toInt(designCapacities[i]) : 0;
+	                  const fullChargeCapacity = fullChargeCapacities && fullChargeCapacities.length >= i + 1 && fullChargeCapacities[i] ? util.toInt(fullChargeCapacities[i]) : 0;
 	                  const parsed = parseWinBatteryPart(lines, designedCapacity, fullChargeCapacity);
 	                  if (!first && parsed.status > 0 && parsed.status !== 10) {
 	                    result.hasBattery = parsed.hasBattery;
@@ -8014,24 +8100,22 @@ function requireBattery () {
 	                    result.model = parsed.model;
 	                    first = true;
 	                  } else if (parsed.status !== -1) {
-	                    additionalBatteries.push(
-	                      {
-	                        hasBattery: parsed.hasBattery,
-	                        maxCapacity: parsed.maxCapacity,
-	                        designedCapacity: parsed.designedCapacity,
-	                        voltage: parsed.voltage,
-	                        capacityUnit: parsed.capacityUnit,
-	                        percent: parsed.percent,
-	                        currentCapacity: parsed.currentCapacity,
-	                        isCharging: parsed.isCharging,
-	                        timeRemaining: null,
-	                        acConnected: parsed.acConnected,
-	                        model: parsed.model,
-	                        type: '',
-	                        manufacturer: '',
-	                        serial: ''
-	                      }
-	                    );
+	                    additionalBatteries.push({
+	                      hasBattery: parsed.hasBattery,
+	                      maxCapacity: parsed.maxCapacity,
+	                      designedCapacity: parsed.designedCapacity,
+	                      voltage: parsed.voltage,
+	                      capacityUnit: parsed.capacityUnit,
+	                      percent: parsed.percent,
+	                      currentCapacity: parsed.currentCapacity,
+	                      isCharging: parsed.isCharging,
+	                      timeRemaining: null,
+	                      acConnected: parsed.acConnected,
+	                      model: parsed.model,
+	                      type: '',
+	                      manufacturer: '',
+	                      serial: ''
+	                    });
 	                  }
 	                }
 	                if (!first && additionalBatteries.length) {
@@ -8043,17 +8127,20 @@ function requireBattery () {
 	                }
 	              }
 	            }
-	            if (callback) { callback(result); }
+	            if (callback) {
+	              callback(result);
+	            }
 	            resolve(result);
 	          });
-	        } catch (e) {
-	          if (callback) { callback(result); }
+	        } catch {
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        }
 	      }
 	    });
 	  });
-	};
 	return battery;
 }
 
@@ -8070,7 +8157,7 @@ function requireGraphics () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -8527,7 +8614,7 @@ function requireGraphics () {
 	        options.stdio = ['pipe', 'pipe', 'ignore'];
 	      }
 	      try {
-	        const sanitized = util.sanitizeShellString(cmd) + (_linux ? '  2>/dev/null' : '');
+	        const sanitized = util.sanitizeShellString(cmd) + (_linux ? '  2>/dev/null' : '') + (_windows ? '  2> nul' : '');
 	        const res = execSync(sanitized, options).toString();
 	        return res;
 	      } catch {
@@ -9316,7 +9403,7 @@ function requireFilesystem () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -9386,7 +9473,7 @@ function requireFilesystem () {
 	    if (stdout.toString().toLowerCase().indexOf('filesystem')) {
 	      let removeLines = 0;
 	      for (let i = 0; i < lines.length; i++) {
-	        if (lines[i]?.toLowerCase().startsWith('filesystem')) {
+	        if (lines[i] && lines[i].toLowerCase().startsWith('filesystem')) {
 	          removeLines = i;
 	        }
 	      }
@@ -9412,7 +9499,7 @@ function requireFilesystem () {
 	          const rw = osMounts && Object.keys(osMounts).length > 0 ? osMounts[fs] || false : null;
 	          line.splice(0, _linux || _freebsd || _openbsd || _netbsd ? 6 : 5);
 	          const mount = line.join(' ');
-	          if (!data.find((el) => el.fs === fs && el.type === fsType)) {
+	          if (!data.find((el) => el.fs === fs && el.type === fsType && el.mount === mount)) {
 	            data.push({
 	              fs,
 	              type: fsType,
@@ -9461,7 +9548,7 @@ function requireFilesystem () {
 	        }
 	        if (_linux) {
 	          try {
-	            cmd = 'export LC_ALL=C; df -lkPTx squashfs; unset LC_ALL';
+	            cmd = 'export LC_ALL=C; df -kPTx squashfs; unset LC_ALL';
 	            execSync('cat /proc/mounts 2>/dev/null', util.execOptsLinux)
 	              .toString()
 	              .split('\n')
@@ -9480,7 +9567,7 @@ function requireFilesystem () {
 	        }
 	        if (_freebsd || _openbsd || _netbsd) {
 	          try {
-	            cmd = 'df -lkPT';
+	            cmd = 'df -kPT';
 	            execSync('mount')
 	              .toString()
 	              .split('\n')
@@ -9505,11 +9592,10 @@ function requireFilesystem () {
 	            }
 	            resolve(data);
 	          } else {
-	            exec('df -kPT', { maxBuffer: 1024 * 1024 }, (error, stdout) => {
-	              if (!error) {
-	                const lines = filterLines(stdout);
-	                data = parseDf(lines);
-	              }
+	            exec('df -kPT 2>/dev/null', { maxBuffer: 1024 * 1024 }, (error, stdout) => {
+	              // fixed issue alpine fallback
+	              const lines = filterLines(stdout);
+	              data = parseDf(lines);
 	              if (callback) {
 	                callback(data);
 	              }
@@ -9802,7 +9888,7 @@ function requireFilesystem () {
 	        element.label = mdData.label; // <- assign label info
 	        element.uuid = mdData.uuid; // <- assign uuid info
 
-	        if (mdData.members?.length && mdData.raid === element.type) {
+	        if (mdData && mdData.members && mdData.members.length && mdData.raid === element.type) {
 	          result = result.map((blockdevice) => {
 	            if (blockdevice.fsType === 'linux_raid_member' && mdData.members.indexOf(blockdevice.name) >= 0) {
 	              blockdevice.group = element.name;
@@ -10089,7 +10175,7 @@ function requireFilesystem () {
 	    ms: 0
 	  };
 
-	  if (_fs_speed?.ms) {
+	  if (_fs_speed && _fs_speed.ms) {
 	    result.rx = rx;
 	    result.wx = wx;
 	    result.tx = result.rx + result.wx;
@@ -10140,7 +10226,7 @@ function requireFilesystem () {
 
 	      let rx = 0;
 	      let wx = 0;
-	      if ((_fs_speed && !_fs_speed.ms) || (_fs_speed?.ms && Date.now() - _fs_speed.ms >= 500)) {
+	      if ((_fs_speed && !_fs_speed.ms) || (_fs_speed && _fs_speed.ms && Date.now() - _fs_speed.ms >= 500)) {
 	        if (_linux) {
 	          // exec("df -k | grep /dev/", function(error, stdout) {
 	          const procLsblk = exec('lsblk -r 2>/dev/null | grep /', { maxBuffer: 1024 * 1024 }, (error, stdout) => {
@@ -10262,7 +10348,7 @@ function requireFilesystem () {
 	    tWaitPercent: null,
 	    ms: 0
 	  };
-	  if (_disk_io?.ms) {
+	  if (_disk_io && _disk_io.ms) {
 	    result.rIO = rIO;
 	    result.wIO = wIO;
 	    result.tIO = rIO + wIO;
@@ -10344,7 +10430,7 @@ function requireFilesystem () {
 	      let wWaitTime = 0;
 	      let tWaitTime = 0;
 
-	      if ((_disk_io && !_disk_io.ms) || (_disk_io?.ms && Date.now() - _disk_io.ms >= 500)) {
+	      if ((_disk_io && !_disk_io.ms) || (_disk_io && _disk_io.ms && Date.now() - _disk_io.ms >= 500)) {
 	        if (_linux || _freebsd || _openbsd || _netbsd) {
 	          // prints Block layer statistics for all mounted volumes
 	          // var cmd = "for mount in `lsblk | grep / | sed -r 's/│ └─//' | cut -d ' ' -f 1`; do cat /sys/block/$mount/stat | sed -r 's/ +/;/g' | sed -r 's/^;//'; done";
@@ -10606,7 +10692,7 @@ function requireFilesystem () {
 	                  for (let i = 0; i < result.length; i++) {
 	                    if (result[i].BSDName === diskBSDName) {
 	                      result[i].smartStatus = disk.smart_status.passed ? 'Ok' : disk.smart_status.passed === false ? 'Predicted Failure' : 'unknown';
-	                      if (disk.temperature?.current) {
+	                      if (disk.temperature && disk.temperature.current) {
 	                        result[i].temperature = disk.temperature.current;
 	                      }
 	                      result[i].smartData = disk;
@@ -10892,7 +10978,7 @@ function requireFilesystem () {
 	          if (util.smartMonToolsInstalled()) {
 	            try {
 	              const smartDev = JSON.parse(execSync('smartctl --scan -j').toString());
-	              if (smartDev?.devices && smartDev.devices.length > 0) {
+	              if (smartDev && smartDev.devices && smartDev.devices.length > 0) {
 	                smartDev.devices.forEach((dev) => {
 	                  workload.push(execPromiseSave(`smartctl -j -a ${dev.name}`, util.execOptsWin));
 	                });
@@ -10972,8 +11058,9 @@ function requireFilesystem () {
 	                    const serialNum = smartData.serial_number;
 	                    const i = util.findObjectByKey(result, 'serialNum', serialNum);
 	                    if (i !== -1) {
-	                      result[i].smartStatus = smartData.smart_status?.passed ? 'Ok' : smartData.smart_status && smartData.smart_status.passed === false ? 'Predicted Failure' : 'unknown';
-	                      if (smartData.temperature?.current) {
+	                      result[i].smartStatus =
+	                        smartData.smart_status && smartData.smart_status.passed ? 'Ok' : smartData.smart_status && smartData.smart_status.passed === false ? 'Predicted Failure' : 'unknown';
+	                      if (smartData.temperature && smartData.temperature.current) {
 	                        result[i].temperature = smartData.temperature.current;
 	                      }
 	                      result[i].smartData = smartData;
@@ -11017,7 +11104,7 @@ function requireNetwork () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -11031,7 +11118,7 @@ function requireNetwork () {
 	const fs = require$$1$1;
 	const util = requireUtil$7();
 
-	let _platform = process.platform;
+	const _platform = process.platform;
 
 	const _linux = _platform === 'linux' || _platform === 'android';
 	const _darwin = _platform === 'darwin';
@@ -11041,7 +11128,7 @@ function requireNetwork () {
 	const _netbsd = _platform === 'netbsd';
 	const _sunos = _platform === 'sunos';
 
-	let _network = {};
+	const _network = {};
 	let _default_iface = '';
 	let _ifaces = {};
 	let _dhcpNics = [];
@@ -11053,14 +11140,14 @@ function requireNetwork () {
 	  let ifacename = '';
 	  let ifacenameFirst = '';
 	  try {
-	    let ifaces = os.networkInterfaces();
+	    const ifaces = os.networkInterfaces();
 
 	    let scopeid = 9999;
 
 	    // fallback - "first" external interface (sorted by scopeid)
 	    for (let dev in ifaces) {
 	      if ({}.hasOwnProperty.call(ifaces, dev)) {
-	        ifaces[dev].forEach(function (details) {
+	        ifaces[dev].forEach((details) => {
 	          if (details && details.internal === false) {
 	            ifacenameFirst = ifacenameFirst || dev; // fallback if no scopeid
 	            if (details.scopeid && details.scopeid < scopeid) {
@@ -11091,7 +11178,7 @@ function requireNetwork () {
 	      if (defaultIp) {
 	        for (let dev in ifaces) {
 	          if ({}.hasOwnProperty.call(ifaces, dev)) {
-	            ifaces[dev].forEach(function (details) {
+	            ifaces[dev].forEach((details) => {
 	              if (details && details.address && details.address === defaultIp) {
 	                ifacename = dev;
 	              }
@@ -11101,9 +11188,9 @@ function requireNetwork () {
 	      }
 	    }
 	    if (_linux) {
-	      let cmd = 'ip route 2> /dev/null | grep default';
-	      let result = execSync(cmd, util.execOptsLinux);
-	      let parts = result.toString().split('\n')[0].split(/\s+/);
+	      const cmd = 'ip route 2> /dev/null | grep default';
+	      const result = execSync(cmd, util.execOptsLinux);
+	      const parts = result.toString().split('\n')[0].split(/\s+/);
 	      if (parts[0] === 'none' && parts[5]) {
 	        ifacename = parts[5];
 	      } else if (parts[4]) {
@@ -11125,7 +11212,7 @@ function requireNetwork () {
 	      if (_freebsd || _openbsd || _netbsd || _sunos) {
 	        cmd = 'route get 0.0.0.0 | grep interface:';
 	      }
-	      let result = execSync(cmd);
+	      const result = execSync(cmd);
 	      ifacename = result.toString().split('\n')[0];
 	      if (ifacename.indexOf(':') > -1) {
 	        ifacename = ifacename.split(':')[1].trim();
@@ -11145,7 +11232,7 @@ function requireNetwork () {
 	function getMacAddresses() {
 	  let iface = '';
 	  let mac = '';
-	  let result = {};
+	  const result = {};
 	  if (_linux || _freebsd || _openbsd || _netbsd) {
 	    if (typeof pathToIp === 'undefined') {
 	      try {
@@ -11161,12 +11248,12 @@ function requireNetwork () {
 	    }
 	    try {
 	      const cmd = 'export LC_ALL=C; ' + (pathToIp ? pathToIp + ' link show up' : '/sbin/ifconfig') + '; unset LC_ALL';
-	      let res = execSync(cmd, util.execOptsLinux);
+	      const res = execSync(cmd, util.execOptsLinux);
 	      const lines = res.toString().split('\n');
 	      for (let i = 0; i < lines.length; i++) {
 	        if (lines[i] && lines[i][0] !== ' ') {
 	          if (pathToIp) {
-	            let nextline = lines[i + 1].trim().split(' ');
+	            const nextline = lines[i + 1].trim().split(' ');
 	            if (nextline[0] === 'link/ether') {
 	              iface = lines[i].split(' ')[1];
 	              iface = iface.slice(0, iface.length - 1);
@@ -11215,7 +11302,7 @@ function requireNetwork () {
 	function networkInterfaceDefault(callback) {
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
-	      let result = getDefaultNetworkInterface();
+	      const result = getDefaultNetworkInterface();
 	      if (callback) {
 	        callback(result);
 	      }
@@ -11230,7 +11317,7 @@ function requireNetwork () {
 	// NET - interfaces
 
 	function parseLinesWindowsNics(sections, nconfigsections) {
-	  let nics = [];
+	  const nics = [];
 	  for (let i in sections) {
 	    try {
 	      if ({}.hasOwnProperty.call(sections, i)) {
@@ -11242,10 +11329,10 @@ function requireNetwork () {
 	          } catch (e) {
 	            util.noop();
 	          }
-	          let netEnabled = util.getValue(lines, 'NetEnabled', ':');
+	          const netEnabled = util.getValue(lines, 'NetEnabled', ':');
 	          let adapterType = util.getValue(lines, 'AdapterTypeID', ':') === '9' ? 'wireless' : 'wired';
-	          let ifacename = util.getValue(lines, 'Name', ':').replace(/\]/g, ')').replace(/\[/g, '(');
-	          let iface = util.getValue(lines, 'NetConnectionID', ':').replace(/\]/g, ')').replace(/\[/g, '(');
+	          const ifacename = util.getValue(lines, 'Name', ':').replace(/\]/g, ')').replace(/\[/g, '(');
+	          const iface = util.getValue(lines, 'NetConnectionID', ':').replace(/\]/g, ')').replace(/\[/g, '(');
 	          if (ifacename.toLowerCase().indexOf('wi-fi') >= 0 || ifacename.toLowerCase().indexOf('wireless') >= 0) {
 	            adapterType = 'wireless';
 	          }
@@ -11437,8 +11524,9 @@ function requireNetwork () {
 	            ifaceSanitized = ifaceSanitized + s[i];
 	          }
 	        }
-	        i8021xState = execSync(`netsh wlan show profiles "${ifaceSanitized}" | findstr "802.1X"`, util.execOptsWin);
-	        i8021xProtocol = execSync(`netsh wlan show profiles "${ifaceSanitized}" | findstr "EAP"`, util.execOptsWin);
+	        const profiles = execSync(`netsh wlan show profiles "${ifaceSanitized}"`, util.execOptsWin).split('\r\n');
+	        i8021xState = (profiles.find((l) => l.indexOf('802.1X') >= 0) || '').trim();
+	        i8021xProtocol = (profiles.find((l) => l.indexOf('EAP') >= 0) || '').trim();
 	      }
 
 	      if (i8021xState.includes(':') && i8021xProtocol.includes(':')) {
@@ -11460,7 +11548,7 @@ function requireNetwork () {
 	function splitSectionsNics(lines) {
 	  const result = [];
 	  let section = [];
-	  lines.forEach(function (line) {
+	  lines.forEach((line) => {
 	    if (!line.startsWith('\t') && !line.startsWith(' ')) {
 	      if (section.length) {
 	        result.push(section);
@@ -11492,7 +11580,7 @@ function requireNetwork () {
 	    };
 	    const first = section[0];
 	    nic.iface = first.split(':')[0].trim();
-	    let parts = first.split('> mtu');
+	    const parts = first.split('> mtu');
 	    nic.mtu = parts.length > 1 ? parseInt(parts[1], 10) : null;
 	    if (isNaN(nic.mtu)) {
 	      nic.mtu = null;
@@ -11574,7 +11662,7 @@ function requireNetwork () {
 	        }
 	      }
 	      if (line.toLowerCase().includes('source')) {
-	        let file = line.split(' ')[1];
+	        const file = line.split(' ')[1];
 	        result = result.concat(checkLinuxDCHPInterfaces(file));
 	      }
 	    });
@@ -11586,7 +11674,7 @@ function requireNetwork () {
 
 	function getLinuxDHCPNics() {
 	  // alternate methods getting interfaces using DHCP
-	  let cmd = 'ip a 2> /dev/null';
+	  const cmd = 'ip a 2> /dev/null';
 	  let result = [];
 	  try {
 	    const lines = execSync(cmd, util.execOptsLinux).toString().split('\n');
@@ -11633,7 +11721,7 @@ function requireNetwork () {
 	      const lines = execSync(cmd, util.execOptsLinux).toString();
 	      const resultFormat = lines.replace(/\s+/g, ' ').trim();
 
-	      let dhcStatus = resultFormat.split(' ').slice(1).toString();
+	      const dhcStatus = resultFormat.split(' ').slice(1).toString();
 	      switch (dhcStatus) {
 	        case 'auto':
 	          result = true;
@@ -11774,7 +11862,7 @@ function requireNetwork () {
 
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
-	      let ifaces = os.networkInterfaces();
+	      const ifaces = os.networkInterfaces();
 
 	      let result = [];
 	      let nics = [];
@@ -12009,9 +12097,9 @@ function requireNetwork () {
 	              mtu = parseInt(util.getValue(lines, 'mtu'), 10);
 	              let myspeed = parseInt(util.getValue(lines, 'speed'), 10);
 	              speed = isNaN(myspeed) ? null : myspeed;
-	              let wirelessspeed = util.getValue(lines, 'wirelessspeed').split('tx bitrate: ');
-	              if (speed === null && wirelessspeed.length === 2) {
-	                myspeed = parseFloat(wirelessspeed[1]);
+	              const wirelessspeed = util.getValue(lines, 'tx bitrate');
+	              if (speed === null && wirelessspeed) {
+	                myspeed = parseFloat(wirelessspeed);
 	                speed = isNaN(myspeed) ? null : myspeed;
 	              }
 	              carrierChanges = parseInt(util.getValue(lines, 'carrier_changes'), 10);
@@ -12078,7 +12166,7 @@ function requireNetwork () {
 	          _ifaces = JSON.parse(JSON.stringify(ifaces));
 	          const defaultInterface = getDefaultNetworkInterface();
 
-	          getWindowsNics().then(function (nics) {
+	          getWindowsNics().then((nics) => {
 	            nics.forEach((nic) => {
 	              let found = false;
 	              Object.keys(ifaces).forEach((key) => {
@@ -12126,7 +12214,7 @@ function requireNetwork () {
 
 	              if ({}.hasOwnProperty.call(ifaces, dev)) {
 	                let ifaceName = dev;
-	                ifaces[dev].forEach(function (details) {
+	                ifaces[dev].forEach((details) => {
 	                  if (details.family === 'IPv4' || details.family === 4) {
 	                    ip4 = details.address;
 	                    ip4subnet = details.netmask;
@@ -12231,7 +12319,7 @@ function requireNetwork () {
 	// NET - Speed
 
 	function calcNetworkSpeed(iface, rx_bytes, tx_bytes, operstate, rx_dropped, rx_errors, tx_dropped, tx_errors) {
-	  let result = {
+	  const result = {
 	    iface,
 	    operstate,
 	    rx_bytes,
@@ -12432,7 +12520,7 @@ function requireNetwork () {
 	              'cat /sys/class/net/' +
 	              ifaceSanitized +
 	              '/statistics/tx_errors; ';
-	            exec(cmd, function (error, stdout) {
+	            exec(cmd, (error, stdout) => {
 	              if (!error) {
 	                lines = stdout.toString().split('\n');
 	                operstate = lines[0].trim();
@@ -12453,7 +12541,7 @@ function requireNetwork () {
 	        }
 	        if (_freebsd || _openbsd || _netbsd) {
 	          cmd = 'netstat -ibndI ' + ifaceSanitized; // lgtm [js/shell-command-constructed-from-input]
-	          exec(cmd, function (error, stdout) {
+	          exec(cmd, (error, stdout) => {
 	            if (!error) {
 	              lines = stdout.toString().split('\n');
 	              for (let i = 1; i < lines.length; i++) {
@@ -12483,7 +12571,7 @@ function requireNetwork () {
 	        }
 	        if (_darwin) {
 	          cmd = 'ifconfig ' + ifaceSanitized + ' | grep "status"'; // lgtm [js/shell-command-constructed-from-input]
-	          exec(cmd, function (error, stdout) {
+	          exec(cmd, (error, stdout) => {
 	            result.operstate = (stdout.toString().split(':')[1] || '').trim();
 	            result.operstate = (result.operstate || '').toLowerCase();
 	            result.operstate = result.operstate === 'active' ? 'up' : result.operstate === 'inactive' ? 'down' : 'unknown';
@@ -12614,15 +12702,15 @@ function requireNetwork () {
 	          cmd =
 	            'export LC_ALL=C; netstat -na | grep "ESTABLISHED\\|SYN_SENT\\|SYN_RECV\\|FIN_WAIT1\\|FIN_WAIT2\\|TIME_WAIT\\|CLOSE\\|CLOSE_WAIT\\|LAST_ACK\\|LISTEN\\|CLOSING\\|UNKNOWN"; unset LC_ALL';
 	        }
-	        exec(cmd, { maxBuffer: 1024 * 102400 }, function (error, stdout) {
+	        exec(cmd, { maxBuffer: 1024 * 102400 }, (error, stdout) => {
 	          let lines = stdout.toString().split('\n');
 	          if (!error && (lines.length > 1 || lines[0] !== '')) {
-	            lines.forEach(function (line) {
+	            lines.forEach((line) => {
 	              line = line.replace(/ +/g, ' ').split(' ');
 	              if (line.length >= 7) {
 	                let localip = line[3];
 	                let localport = '';
-	                let localaddress = line[3].split(':');
+	                const localaddress = line[3].split(':');
 	                if (localaddress.length > 1) {
 	                  localport = localaddress[localaddress.length - 1];
 	                  localaddress.pop();
@@ -12630,14 +12718,14 @@ function requireNetwork () {
 	                }
 	                let peerip = line[4];
 	                let peerport = '';
-	                let peeraddress = line[4].split(':');
+	                const peeraddress = line[4].split(':');
 	                if (peeraddress.length > 1) {
 	                  peerport = peeraddress[peeraddress.length - 1];
 	                  peeraddress.pop();
 	                  peerip = peeraddress.join(':');
 	                }
-	                let connstate = line[5];
-	                let proc = line[6].split('/');
+	                const connstate = line[5];
+	                const proc = line[6].split('/');
 
 	                if (connstate) {
 	                  result.push({
@@ -12659,15 +12747,15 @@ function requireNetwork () {
 	            resolve(result);
 	          } else {
 	            cmd = 'ss -tunap | grep "ESTAB\\|SYN-SENT\\|SYN-RECV\\|FIN-WAIT1\\|FIN-WAIT2\\|TIME-WAIT\\|CLOSE\\|CLOSE-WAIT\\|LAST-ACK\\|LISTEN\\|CLOSING"';
-	            exec(cmd, { maxBuffer: 1024 * 102400 }, function (error, stdout) {
+	            exec(cmd, { maxBuffer: 1024 * 102400 }, (error, stdout) => {
 	              if (!error) {
-	                let lines = stdout.toString().split('\n');
-	                lines.forEach(function (line) {
+	                const lines = stdout.toString().split('\n');
+	                lines.forEach((line) => {
 	                  line = line.replace(/ +/g, ' ').split(' ');
 	                  if (line.length >= 6) {
 	                    let localip = line[4];
 	                    let localport = '';
-	                    let localaddress = line[4].split(':');
+	                    const localaddress = line[4].split(':');
 	                    if (localaddress.length > 1) {
 	                      localport = localaddress[localaddress.length - 1];
 	                      localaddress.pop();
@@ -12675,7 +12763,7 @@ function requireNetwork () {
 	                    }
 	                    let peerip = line[5];
 	                    let peerport = '';
-	                    let peeraddress = line[5].split(':');
+	                    const peeraddress = line[5].split(':');
 	                    if (peeraddress.length > 1) {
 	                      peerport = peeraddress[peeraddress.length - 1];
 	                      peeraddress.pop();
@@ -12691,12 +12779,22 @@ function requireNetwork () {
 	                    let pid = null;
 	                    let process = '';
 	                    if (line.length >= 7 && line[6].indexOf('users:') > -1) {
-	                      let proc = line[6].replace('users:(("', '').replace(/"/g, '').split(',');
+	                      const proc = line[6].replace('users:(("', '').replace(/"/g, '').replace('pid=', '').split(',');
 	                      if (proc.length > 2) {
-	                        process = proc[0].split(' ')[0].split(':')[0];
-	                        pid = parseInt(proc[1], 10);
+	                        process = proc[0];
+	                        const pidValue = parseInt(proc[1], 10);
+	                        if (pidValue > 0) {
+	                          pid = pidValue;
+	                        }
 	                      }
 	                    }
+	                    // if (line.length >= 7 && line[6].indexOf('users:') > -1) {
+	                    //   const proc = line[6].replace('users:(("', '').replace(/"/g, '').split(',');
+	                    //   if (proc.length > 2) {
+	                    //     process = proc[0].split(' ')[0].split(':')[0];
+	                    //     pid = parseInt(proc[1], 10);
+	                    //   }
+	                    // }
 	                    if (connstate) {
 	                      result.push({
 	                        protocol: line[0],
@@ -12721,16 +12819,16 @@ function requireNetwork () {
 	        });
 	      }
 	      if (_darwin) {
-	        let cmd = 'netstat -natvln | head -n2; netstat -natvln | grep "tcp4\\|tcp6\\|udp4\\|udp6"';
+	        const cmd = 'netstat -natvln | head -n2; netstat -natvln | grep "tcp4\\|tcp6\\|udp4\\|udp6"';
 	        const states = 'ESTABLISHED|SYN_SENT|SYN_RECV|FIN_WAIT1|FIN_WAIT_1|FIN_WAIT2|FIN_WAIT_2|TIME_WAIT|CLOSE|CLOSE_WAIT|LAST_ACK|LISTEN|CLOSING|UNKNOWN'.split('|');
-	        exec(cmd, { maxBuffer: 1024 * 102400 }, function (error, stdout) {
+	        exec(cmd, { maxBuffer: 1024 * 102400 }, (error, stdout) => {
 	          if (!error) {
-	            exec('ps -axo pid,command', { maxBuffer: 1024 * 102400 }, function (err2, stdout2) {
+	            exec('ps -axo pid,command', { maxBuffer: 1024 * 102400 }, (err2, stdout2) => {
 	              let processes = stdout2.toString().split('\n');
 	              processes = processes.map((line) => {
 	                return line.trim().replace(/ +/g, ' ');
 	              });
-	              let lines = stdout.toString().split('\n');
+	              const lines = stdout.toString().split('\n');
 	              lines.shift();
 	              let pidPos = 8;
 	              if (lines.length > 1 && lines[0].indexOf('pid') > 0) {
@@ -12741,12 +12839,12 @@ function requireNetwork () {
 	                  .split(' ');
 	                pidPos = header.indexOf('pid');
 	              }
-	              lines.forEach(function (line) {
+	              lines.forEach((line) => {
 	                line = line.replace(/ +/g, ' ').split(' ');
 	                if (line.length >= 8) {
 	                  let localip = line[3];
 	                  let localport = '';
-	                  let localaddress = line[3].split('.');
+	                  const localaddress = line[3].split('.');
 	                  if (localaddress.length > 1) {
 	                    localport = localaddress[localaddress.length - 1];
 	                    localaddress.pop();
@@ -12754,14 +12852,14 @@ function requireNetwork () {
 	                  }
 	                  let peerip = line[4];
 	                  let peerport = '';
-	                  let peeraddress = line[4].split('.');
+	                  const peeraddress = line[4].split('.');
 	                  if (peeraddress.length > 1) {
 	                    peerport = peeraddress[peeraddress.length - 1];
 	                    peeraddress.pop();
 	                    peerip = peeraddress.join('.');
 	                  }
 	                  const hasState = states.indexOf(line[5]) >= 0;
-	                  let connstate = hasState ? line[5] : 'UNKNOWN';
+	                  const connstate = hasState ? line[5] : 'UNKNOWN';
 	                  let pidField = '';
 	                  if (line[line.length - 9].indexOf(':') >= 0) {
 	                    pidField = line[line.length - 9].split(':')[1];
@@ -12772,7 +12870,7 @@ function requireNetwork () {
 	                      pidField = pidField.split(':')[1];
 	                    }
 	                  }
-	                  let pid = parseInt(pidField, 10);
+	                  const pid = parseInt(pidField, 10);
 	                  if (connstate) {
 	                    result.push({
 	                      protocol: line[0],
@@ -12798,11 +12896,11 @@ function requireNetwork () {
 	      if (_windows) {
 	        let cmd = 'netstat -nao';
 	        try {
-	          exec(cmd, util.execOptsWin, function (error, stdout) {
+	          exec(cmd, util.execOptsWin, (error, stdout) => {
 	            if (!error) {
 	              let lines = stdout.toString().split('\r\n');
 
-	              lines.forEach(function (line) {
+	              lines.forEach((line) => {
 	                line = line.trim().replace(/ +/g, ' ').split(' ');
 	                if (line.length >= 4) {
 	                  let localip = line[1];
@@ -12904,7 +13002,7 @@ function requireNetwork () {
 	      if (_linux || _freebsd || _openbsd || _netbsd) {
 	        let cmd = 'ip route get 1';
 	        try {
-	          exec(cmd, { maxBuffer: 1024 * 102400 }, function (error, stdout) {
+	          exec(cmd, { maxBuffer: 1024 * 102400 }, (error, stdout) => {
 	            if (!error) {
 	              let lines = stdout.toString().split('\n');
 	              const line = lines && lines[0] ? lines[0] : '';
@@ -12934,7 +13032,7 @@ function requireNetwork () {
 	      if (_darwin) {
 	        let cmd = 'route -n get default';
 	        try {
-	          exec(cmd, { maxBuffer: 1024 * 102400 }, function (error, stdout) {
+	          exec(cmd, { maxBuffer: 1024 * 102400 }, (error, stdout) => {
 	            if (!error) {
 	              const lines = stdout
 	                .toString()
@@ -12944,7 +13042,7 @@ function requireNetwork () {
 	            }
 	            if (!result) {
 	              cmd = "netstat -rn | awk '/default/ {print $2}'";
-	              exec(cmd, { maxBuffer: 1024 * 102400 }, function (error, stdout) {
+	              exec(cmd, { maxBuffer: 1024 * 102400 }, (error, stdout) => {
 	                const lines = stdout
 	                  .toString()
 	                  .split('\n')
@@ -12973,7 +13071,7 @@ function requireNetwork () {
 	      }
 	      if (_windows) {
 	        try {
-	          exec('netstat -r', util.execOptsWin, function (error, stdout) {
+	          exec('netstat -r', util.execOptsWin, (error, stdout) => {
 	            const lines = stdout.toString().split(os.EOL);
 	            lines.forEach((line) => {
 	              line = line.replace(/\s+/g, ' ').trim();
@@ -13044,7 +13142,7 @@ function requireWifi () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -13887,7 +13985,7 @@ function requireProcesses () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -14814,82 +14912,73 @@ function requireProcesses () {
 	          try {
 	            util
 	              .powerShell(
-	                'Get-CimInstance Win32_Process | select-Object ProcessId,ParentProcessId,ExecutionState,Caption,CommandLine,ExecutablePath,UserModeTime,KernelModeTime,WorkingSetSize,Priority,PageFileUsage, @{n="CreationDate";e={$_.CreationDate.ToString("yyyy-MM-dd HH:mm:ss")}} | fl'
+	                `Get-CimInstance Win32_Process | select-Object ProcessId,ParentProcessId,ExecutionState,Caption,CommandLine,ExecutablePath,UserModeTime,KernelModeTime,WorkingSetSize,Priority,PageFileUsage,
+                @{n="CreationDate";e={$_.CreationDate.ToString("yyyy-MM-dd HH:mm:ss")}} | ConvertTo-Json -compress`
 	              )
 	              .then((stdout, error) => {
 	                if (!error) {
-	                  let processSections = stdout.split(/\n\s*\n/);
-	                  let procs = [];
-	                  let procStats = [];
-	                  let list_new = {};
+	                  const procs = [];
+	                  const procStats = [];
+	                  const list_new = {};
 	                  let allcpuu = 0;
 	                  let allcpus = 0;
-	                  processSections.forEach((element) => {
-	                    if (element.trim() !== '') {
-	                      let lines = element.trim().split('\r\n');
-	                      let pid = parseInt(util.getValue(lines, 'ProcessId', ':', true), 10);
-	                      let parentPid = parseInt(util.getValue(lines, 'ParentProcessId', ':', true), 10);
-	                      let statusValue = util.getValue(lines, 'ExecutionState', ':');
-	                      let name = util.getValue(lines, 'Caption', ':', true);
-	                      let commandLine = util.getValue(lines, 'CommandLine', ':', true);
-	                      // get additional command line data
-	                      let additionalCommand = false;
-	                      lines.forEach((line) => {
-	                        if (additionalCommand && line.toLowerCase().startsWith(' ')) {
-	                          commandLine += ' ' + line.trim();
-	                        } else {
-	                          additionalCommand = false;
-	                        }
-	                        if (line.toLowerCase().startsWith('commandline')) {
-	                          additionalCommand = true;
-	                        }
-	                      });
-	                      let commandPath = util.getValue(lines, 'ExecutablePath', ':', true);
-	                      let utime = parseInt(util.getValue(lines, 'UserModeTime', ':', true), 10);
-	                      let stime = parseInt(util.getValue(lines, 'KernelModeTime', ':', true), 10);
-	                      let memw = parseInt(util.getValue(lines, 'WorkingSetSize', ':', true), 10);
-	                      allcpuu = allcpuu + utime;
-	                      allcpus = allcpus + stime;
-	                      result.all++;
-	                      if (!statusValue) {
-	                        result.unknown++;
-	                      }
-	                      if (statusValue === '3') {
-	                        result.running++;
-	                      }
-	                      if (statusValue === '4' || statusValue === '5') {
-	                        result.blocked++;
-	                      }
-
-	                      procStats.push({
-	                        pid: pid,
-	                        utime: utime,
-	                        stime: stime,
-	                        cpu: 0,
-	                        cpuu: 0,
-	                        cpus: 0
-	                      });
-	                      procs.push({
-	                        pid: pid,
-	                        parentPid: parentPid,
-	                        name: name,
-	                        cpu: 0,
-	                        cpuu: 0,
-	                        cpus: 0,
-	                        mem: (memw / os.totalmem()) * 100,
-	                        priority: parseInt(util.getValue(lines, 'Priority', ':', true), 10),
-	                        memVsz: parseInt(util.getValue(lines, 'PageFileUsage', ':', true), 10),
-	                        memRss: Math.floor(parseInt(util.getValue(lines, 'WorkingSetSize', ':', true), 10) / 1024),
-	                        nice: 0,
-	                        started: util.getValue(lines, 'CreationDate', ':', true),
-	                        state: !statusValue ? _winStatusValues[0] : _winStatusValues[statusValue],
-	                        tty: '',
-	                        user: '',
-	                        command: commandLine || name,
-	                        path: commandPath,
-	                        params: ''
-	                      });
+	                  let processArray = [];
+	                  try {
+	                    stdout = stdout.trim().replace(/^\uFEFF/, '');
+	                    processArray = JSON.parse(stdout);
+	                  } catch {}
+	                  processArray.forEach((element) => {
+	                    const pid = element.ProcessId;
+	                    const parentPid = element.ParentProcessId;
+	                    const statusValue = element.ExecutionState || null;
+	                    const name = element.Caption;
+	                    const commandLine = element.CommandLine;
+	                    // get additional command line data
+	                    const commandPath = element.ExecutablePath;
+	                    const utime = element.UserModeTime;
+	                    const stime = element.KernelModeTime;
+	                    const memw = element.WorkingSetSize;
+	                    allcpuu = allcpuu + utime;
+	                    allcpus = allcpus + stime;
+	                    result.all++;
+	                    if (!statusValue) {
+	                      result.unknown++;
 	                    }
+	                    if (statusValue === '3') {
+	                      result.running++;
+	                    }
+	                    if (statusValue === '4' || statusValue === '5') {
+	                      result.blocked++;
+	                    }
+
+	                    procStats.push({
+	                      pid: pid,
+	                      utime: utime,
+	                      stime: stime,
+	                      cpu: 0,
+	                      cpuu: 0,
+	                      cpus: 0
+	                    });
+	                    procs.push({
+	                      pid: pid,
+	                      parentPid: parentPid,
+	                      name: name,
+	                      cpu: 0,
+	                      cpuu: 0,
+	                      cpus: 0,
+	                      mem: (memw / os.totalmem()) * 100,
+	                      priority: element.Priority | null,
+	                      memVsz: element.PageFileUsage || null,
+	                      memRss: Math.floor((element.WorkingSetSize || 0) / 1024),
+	                      nice: 0,
+	                      started: element.CreationDate,
+	                      state: statusValue ? _winStatusValues[statusValue] : _winStatusValues[0],
+	                      tty: '',
+	                      user: '',
+	                      command: commandLine || name,
+	                      path: commandPath,
+	                      params: ''
+	                    });
 	                  });
 
 	                  result.sleeping = result.all - result.running - result.blocked - result.unknown;
@@ -15018,69 +15107,70 @@ function requireProcesses () {
 	      if (procSanitized && processes.length && processes[0] !== '------') {
 	        if (_windows) {
 	          try {
-	            util.powerShell('Get-CimInstance Win32_Process | select ProcessId,Caption,UserModeTime,KernelModeTime,WorkingSetSize | fl').then((stdout, error) => {
+	            util.powerShell('Get-CimInstance Win32_Process | select ProcessId,Caption,UserModeTime,KernelModeTime,WorkingSetSize | ConvertTo-Json -compress').then((stdout, error) => {
 	              if (!error) {
-	                let processSections = stdout.split(/\n\s*\n/);
-	                let procStats = [];
-	                let list_new = {};
+	                const procStats = [];
+	                const list_new = {};
 	                let allcpuu = 0;
 	                let allcpus = 0;
+	                let processArray = [];
+	                try {
+	                  stdout = stdout.trim().replace(/^\uFEFF/, '');
+	                  processArray = JSON.parse(stdout);
+	                } catch {}
 
 	                // go through all processes
-	                processSections.forEach((element) => {
-	                  if (element.trim() !== '') {
-	                    let lines = element.trim().split('\r\n');
-	                    let pid = parseInt(util.getValue(lines, 'ProcessId', ':', true), 10);
-	                    let name = util.getValue(lines, 'Caption', ':', true);
-	                    let utime = parseInt(util.getValue(lines, 'UserModeTime', ':', true), 10);
-	                    let stime = parseInt(util.getValue(lines, 'KernelModeTime', ':', true), 10);
-	                    let mem = parseInt(util.getValue(lines, 'WorkingSetSize', ':', true), 10);
-	                    allcpuu = allcpuu + utime;
-	                    allcpus = allcpus + stime;
+	                processArray.forEach((element) => {
+	                  const pid = element.ProcessId;
+	                  const name = element.Caption;
+	                  const utime = element.UserModeTime;
+	                  const stime = element.KernelModeTime;
+	                  const mem = element.WorkingSetSize;
+	                  allcpuu = allcpuu + utime;
+	                  allcpus = allcpus + stime;
 
-	                    procStats.push({
-	                      pid: pid,
-	                      name,
-	                      utime: utime,
-	                      stime: stime,
-	                      cpu: 0,
-	                      cpuu: 0,
-	                      cpus: 0,
-	                      mem
-	                    });
-	                    let pname = '';
-	                    let inList = false;
-	                    processes.forEach((proc) => {
-	                      if (name.toLowerCase().indexOf(proc.toLowerCase()) >= 0 && !inList) {
-	                        inList = true;
-	                        pname = proc;
+	                  procStats.push({
+	                    pid: pid,
+	                    name,
+	                    utime: utime,
+	                    stime: stime,
+	                    cpu: 0,
+	                    cpuu: 0,
+	                    cpus: 0,
+	                    mem
+	                  });
+	                  let pname = '';
+	                  let inList = false;
+	                  processes.forEach((proc) => {
+	                    if (name.toLowerCase().indexOf(proc.toLowerCase()) >= 0 && !inList) {
+	                      inList = true;
+	                      pname = proc;
+	                    }
+	                  });
+
+	                  if (processesString === '*' || inList) {
+	                    let processFound = false;
+	                    result.forEach((item) => {
+	                      if (item.proc.toLowerCase() === pname.toLowerCase()) {
+	                        item.pids.push(pid);
+	                        item.mem += (mem / os.totalmem()) * 100;
+	                        processFound = true;
 	                      }
 	                    });
-
-	                    if (processesString === '*' || inList) {
-	                      let processFound = false;
-	                      result.forEach((item) => {
-	                        if (item.proc.toLowerCase() === pname.toLowerCase()) {
-	                          item.pids.push(pid);
-	                          item.mem += (mem / os.totalmem()) * 100;
-	                          processFound = true;
-	                        }
+	                    if (!processFound) {
+	                      result.push({
+	                        proc: pname,
+	                        pid: pid,
+	                        pids: [pid],
+	                        cpu: 0,
+	                        mem: (mem / os.totalmem()) * 100
 	                      });
-	                      if (!processFound) {
-	                        result.push({
-	                          proc: pname,
-	                          pid: pid,
-	                          pids: [pid],
-	                          cpu: 0,
-	                          mem: (mem / os.totalmem()) * 100
-	                        });
-	                      }
 	                    }
 	                  }
 	                });
 
-	                // add missing processes
 	                if (processesString !== '*') {
+	                  // add missing processes
 	                  let processesMissing = processes.filter((name) => procStats.filter((item) => item.name.toLowerCase().indexOf(name) >= 0).length === 0);
 	                  processesMissing.forEach((procName) => {
 	                    result.push({
@@ -15129,7 +15219,7 @@ function requireProcesses () {
 	                resolve(result);
 	              }
 	            });
-	          } catch (e) {
+	          } catch {
 	            if (callback) {
 	              callback(result);
 	            }
@@ -15327,7 +15417,7 @@ function requireUsers () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -15338,60 +15428,92 @@ function requireUsers () {
 	const exec = require$$1.exec;
 	const util = requireUtil$7();
 
-	let _platform = process.platform;
+	const _platform = process.platform;
 
-	const _linux = (_platform === 'linux' || _platform === 'android');
-	const _darwin = (_platform === 'darwin');
-	const _windows = (_platform === 'win32');
-	const _freebsd = (_platform === 'freebsd');
-	const _openbsd = (_platform === 'openbsd');
-	const _netbsd = (_platform === 'netbsd');
-	const _sunos = (_platform === 'sunos');
+	const _linux = _platform === 'linux' || _platform === 'android';
+	const _darwin = _platform === 'darwin';
+	const _windows = _platform === 'win32';
+	const _freebsd = _platform === 'freebsd';
+	const _openbsd = _platform === 'openbsd';
+	const _netbsd = _platform === 'netbsd';
+	const _sunos = _platform === 'sunos';
+
+	function parseDate(dtMon, dtDay) {
+	  let dt = new Date().toISOString().slice(0, 10);
+	  try {
+	    dt = '' + new Date().getFullYear() + '-' + ('0' + ('JANFEBMARAPRMAYJUNJULAUGSEPOCTNOVDEC'.indexOf(dtMon.toUpperCase()) / 3 + 1)).slice(-2) + '-' + ('0' + dtDay).slice(-2);
+	    if (new Date(dt) > new Date()) {
+	      dt = '' + (new Date().getFullYear() - 1) + '-' + ('0' + ('JANFEBMARAPRMAYJUNJULAUGSEPOCTNOVDEC'.indexOf(dtMon.toUpperCase()) / 3 + 1)).slice(-2) + '-' + ('0' + dtDay).slice(-2);
+	    }
+	  } catch {
+	    util.noop();
+	  }
+	  return dt;
+	}
 
 	function parseUsersLinux(lines, phase) {
-	  let result = [];
+	  const result = [];
 	  let result_who = [];
-	  let result_w = {};
+	  const result_w = {};
 	  let w_first = true;
 	  let w_header = [];
-	  let w_pos = [];
+	  const w_pos = [];
 	  let who_line = {};
 
 	  let is_whopart = true;
-	  lines.forEach(function (line) {
+	  let is_whoerror = false;
+	  lines.forEach((line) => {
 	    if (line === '---') {
 	      is_whopart = false;
 	    } else {
-	      let l = line.replace(/ +/g, ' ').split(' ');
-
+	      const l = line.replace(/ +/g, ' ').split(' ');
 	      // who part
 	      if (is_whopart) {
-	        result_who.push({
-	          user: l[0],
-	          tty: l[1],
-	          date: l[2],
-	          time: l[3],
-	          ip: (l && l.length > 4) ? l[4].replace(/\(/g, '').replace(/\)/g, '') : ''
-	        });
+	        if (line.toLowerCase().indexOf('unexpected') >= 0 || line.toLowerCase().indexOf('unrecognized') >= 0) {
+	          is_whoerror = true;
+	          result_who = [];
+	        }
+	        if (!is_whoerror) {
+	          const timePos = l && l.length > 4 && l[4].indexOf(':') > 0 ? 4 : 3;
+	          result_who.push({
+	            user: l[0],
+	            tty: l[1],
+	            date: timePos === 4 ? parseDate(l[2], l[3]) : l[2],
+	            time: l[timePos],
+	            ip: l && l.length > timePos + 1 ? l[timePos + 1].replace(/\(/g, '').replace(/\)/g, '') : '',
+	            command: ''
+	          });
+	        }
 	      } else {
 	        // w part
-	        if (w_first) {    // header
-	          w_header = l;
-	          w_header.forEach(function (item) {
-	            w_pos.push(line.indexOf(item));
-	          });
-	          w_first = false;
+	        if (w_first) {
+	          // header
+	          if (line[0] !== ' ') {
+	            w_header = l;
+	            w_header.forEach((item) => {
+	              w_pos.push(line.indexOf(item));
+	            });
+	            w_first = false;
+	          }
 	        } else {
 	          // split by w_pos
 	          result_w.user = line.substring(w_pos[0], w_pos[1] - 1).trim();
 	          result_w.tty = line.substring(w_pos[1], w_pos[2] - 1).trim();
-	          result_w.ip = line.substring(w_pos[2], w_pos[3] - 1).replace(/\(/g, '').replace(/\)/g, '').trim();
+	          result_w.ip = line
+	            .substring(w_pos[2], w_pos[3] - 1)
+	            .replace(/\(/g, '')
+	            .replace(/\)/g, '')
+	            .trim();
 	          result_w.command = line.substring(w_pos[7], 1000).trim();
 	          // find corresponding 'who' line
-	          who_line = result_who.filter(function (obj) {
-	            return (obj.user.substring(0, 8).trim() === result_w.user && obj.tty === result_w.tty);
-	          });
-	          if (who_line.length === 1) {
+	          if (result_who.length || phase === 1) {
+	            who_line = result_who.filter((obj) => {
+	              return obj.user.substring(0, 8).trim() === result_w.user && obj.tty === result_w.tty;
+	            });
+	          } else {
+	            who_line = [{ user: result_w.user, tty: result_w.tty, date: '', time: '', ip: '' }];
+	          }
+	          if (who_line.length === 1 && who_line[0].user !== '') {
 	            result.push({
 	              user: who_line[0].user,
 	              tty: who_line[0].tty,
@@ -15413,45 +15535,35 @@ function requireUsers () {
 	}
 
 	function parseUsersDarwin(lines) {
-	  let result = [];
-	  let result_who = [];
-	  let result_w = {};
+	  const result = [];
+	  const result_who = [];
+	  const result_w = {};
 	  let who_line = {};
 
 	  let is_whopart = true;
-	  lines.forEach(function (line) {
+	  lines.forEach((line) => {
 	    if (line === '---') {
 	      is_whopart = false;
 	    } else {
-	      let l = line.replace(/ +/g, ' ').split(' ');
+	      const l = line.replace(/ +/g, ' ').split(' ');
 
 	      // who part
 	      if (is_whopart) {
-	        let dt = ('' + new Date().getFullYear()) + '-' + ('0' + ('JANFEBMARAPRMAYJUNJULAUGSEPOCTNOVDEC'.indexOf(l[2].toUpperCase()) / 3 + 1)).slice(-2) + '-' + ('0' + l[3]).slice(-2);
-	        try {
-	          if (new Date(dt) > new Date) {
-	            dt = ('' + (new Date().getFullYear() - 1)) + '-' + ('0' + ('JANFEBMARAPRMAYJUNJULAUGSEPOCTNOVDEC'.indexOf(l[2].toUpperCase()) / 3 + 1)).slice(-2) + '-' + ('0' + l[3]).slice(-2);
-	          }
-	        } catch {
-	          util.noop();
-	        }
 	        result_who.push({
 	          user: l[0],
 	          tty: l[1],
-	          date: dt,
-	          time: l[4],
+	          date: parseDate(l[2], l[3]),
+	          time: l[4]
 	        });
 	      } else {
 	        // w part
 	        // split by w_pos
 	        result_w.user = l[0];
 	        result_w.tty = l[1];
-	        result_w.ip = (l[2] !== '-') ? l[2] : '';
+	        result_w.ip = l[2] !== '-' ? l[2] : '';
 	        result_w.command = l.slice(5, 1000).join(' ');
 	        // find corresponding 'who' line
-	        who_line = result_who.filter(function (obj) {
-	          return (obj.user.substring(0, 10) === result_w.user.substring(0, 10) && (obj.tty.substring(3, 1000) === result_w.tty || obj.tty === result_w.tty));
-	        });
+	        who_line = result_who.filter((obj) => obj.user.substring(0, 10) === result_w.user.substring(0, 10) && (obj.tty.substring(3, 1000) === result_w.tty || obj.tty === result_w.tty));
 	        if (who_line.length === 1) {
 	          result.push({
 	            user: who_line[0].user,
@@ -15469,91 +15581,103 @@ function requireUsers () {
 	}
 
 	function users$1(callback) {
-
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
 	      let result = [];
 
 	      // linux
 	      if (_linux) {
-	        exec('export LC_ALL=C; who --ips; echo "---"; w; unset LC_ALL | tail -n +2', function (error, stdout) {
+	        exec('export LC_ALL=C; who --ips; echo "---"; w; unset LC_ALL | tail -n +2', (error, stdout) => {
 	          if (!error) {
 	            // lines / split
 	            let lines = stdout.toString().split('\n');
 	            result = parseUsersLinux(lines, 1);
 	            if (result.length === 0) {
-	              exec('who; echo "---"; w | tail -n +2', function (error, stdout) {
+	              exec('who; echo "---"; w | tail -n +2', (error, stdout) => {
 	                if (!error) {
 	                  // lines / split
 	                  lines = stdout.toString().split('\n');
 	                  result = parseUsersLinux(lines, 2);
 	                }
-	                if (callback) { callback(result); }
+	                if (callback) {
+	                  callback(result);
+	                }
 	                resolve(result);
 	              });
 	            } else {
-	              if (callback) { callback(result); }
+	              if (callback) {
+	                callback(result);
+	              }
 	              resolve(result);
 	            }
 	          } else {
-	            if (callback) { callback(result); }
+	            if (callback) {
+	              callback(result);
+	            }
 	            resolve(result);
 	          }
 	        });
 	      }
 	      if (_freebsd || _openbsd || _netbsd) {
-	        exec('who; echo "---"; w -ih', function (error, stdout) {
+	        exec('who; echo "---"; w -ih', (error, stdout) => {
 	          if (!error) {
 	            // lines / split
-	            let lines = stdout.toString().split('\n');
+	            const lines = stdout.toString().split('\n');
 	            result = parseUsersDarwin(lines);
 	          }
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        });
 	      }
 	      if (_sunos) {
-	        exec('who; echo "---"; w -h', function (error, stdout) {
+	        exec('who; echo "---"; w -h', (error, stdout) => {
 	          if (!error) {
 	            // lines / split
-	            let lines = stdout.toString().split('\n');
+	            const lines = stdout.toString().split('\n');
 	            result = parseUsersDarwin(lines);
 	          }
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        });
 	      }
 
 	      if (_darwin) {
-	        exec('export LC_ALL=C; who; echo "---"; w -ih; unset LC_ALL', function (error, stdout) {
+	        exec('export LC_ALL=C; who; echo "---"; w -ih; unset LC_ALL', (error, stdout) => {
 	          if (!error) {
 	            // lines / split
-	            let lines = stdout.toString().split('\n');
+	            const lines = stdout.toString().split('\n');
 	            result = parseUsersDarwin(lines);
 	          }
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        });
 	      }
 	      if (_windows) {
 	        try {
-	          let cmd = 'Get-CimInstance Win32_LogonSession | select LogonId,@{n="StartTime";e={$_.StartTime.ToString("yyyy-MM-dd HH:mm:ss")}} | fl' + '; echo \'#-#-#-#\';';
-	          cmd += 'Get-CimInstance Win32_LoggedOnUser | select antecedent,dependent | fl ' + '; echo \'#-#-#-#\';';
-	          cmd += '$process = (Get-CimInstance Win32_Process -Filter "name = \'explorer.exe\'"); Invoke-CimMethod -InputObject $process[0] -MethodName GetOwner | select user, domain | fl; get-process -name explorer | select-object sessionid | fl; echo \'#-#-#-#\';';
+	          let cmd = 'Get-CimInstance Win32_LogonSession | select LogonId,@{n="StartTime";e={$_.StartTime.ToString("yyyy-MM-dd HH:mm:ss")}} | fl' + "; echo '#-#-#-#';";
+	          cmd += 'Get-CimInstance Win32_LoggedOnUser | select antecedent,dependent | fl ' + "; echo '#-#-#-#';";
+	          cmd +=
+	            "$process = (Get-CimInstance Win32_Process -Filter \"name = 'explorer.exe'\"); Invoke-CimMethod -InputObject $process[0] -MethodName GetOwner | select user, domain | fl; get-process -name explorer | select-object sessionid | fl; echo '#-#-#-#';";
 	          cmd += 'query user';
 	          util.powerShell(cmd).then((data) => {
 	            if (data) {
 	              data = data.split('#-#-#-#');
-	              let sessions = parseWinSessions((data[0] || '').split(/\n\s*\n/));
-	              let loggedons = parseWinLoggedOn((data[1] || '').split(/\n\s*\n/));
-	              let queryUser = parseWinUsersQuery((data[3] || '').split('\r\n'));
-	              let users = parseWinUsers((data[2] || '').split(/\n\s*\n/), queryUser);
+	              const sessions = parseWinSessions((data[0] || '').split(/\n\s*\n/));
+	              const loggedons = parseWinLoggedOn((data[1] || '').split(/\n\s*\n/));
+	              const queryUser = parseWinUsersQuery((data[3] || '').split('\r\n'));
+	              const users = parseWinUsers((data[2] || '').split(/\n\s*\n/), queryUser);
 	              for (let id in loggedons) {
 	                if ({}.hasOwnProperty.call(loggedons, id)) {
 	                  loggedons[id].dateTime = {}.hasOwnProperty.call(sessions, id) ? sessions[id] : '';
 	                }
 	              }
-	              users.forEach(user => {
+	              users.forEach((user) => {
 	                let dateTime = '';
 	                for (let id in loggedons) {
 	                  if ({}.hasOwnProperty.call(loggedons, id)) {
@@ -15573,12 +15697,15 @@ function requireUsers () {
 	                });
 	              });
 	            }
-	            if (callback) { callback(result); }
+	            if (callback) {
+	              callback(result);
+	            }
 	            resolve(result);
-
 	          });
 	        } catch (e) {
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        }
 	      }
@@ -15588,7 +15715,7 @@ function requireUsers () {
 
 	function parseWinSessions(sessionParts) {
 	  const sessions = {};
-	  sessionParts.forEach(session => {
+	  sessionParts.forEach((session) => {
 	    const lines = session.split('\r\n');
 	    const id = util.getValue(lines, 'LogonId');
 	    const starttime = util.getValue(lines, 'starttime');
@@ -15604,19 +15731,23 @@ function requireUsers () {
 	  name2 = name2.toLowerCase();
 	  let eq = 0;
 	  let len = name1.length;
-	  if (name2.length > len) { len = name2.length; }
+	  if (name2.length > len) {
+	    len = name2.length;
+	  }
 
 	  for (let i = 0; i < len; i++) {
 	    const c1 = name1[i] || '';
 	    const c2 = name2[i] || '';
-	    if (c1 === c2) { eq++; }
+	    if (c1 === c2) {
+	      eq++;
+	    }
 	  }
-	  return (len > 10 ? eq / len > 0.9 : (len > 0 ? eq / len > 0.8 : false));
+	  return len > 10 ? eq / len > 0.9 : len > 0 ? eq / len > 0.8 : false;
 	}
 
 	function parseWinUsers(userParts, userQuery) {
 	  const users = [];
-	  userParts.forEach(user => {
+	  userParts.forEach((user) => {
 	    const lines = user.split('\r\n');
 
 	    const domain = util.getValue(lines, 'domain', ':', true);
@@ -15624,7 +15755,7 @@ function requireUsers () {
 	    const sessionid = util.getValue(lines, 'sessionid', ':', true);
 
 	    if (username) {
-	      const quser = userQuery.filter(item => fuzzyMatch(item.user, username));
+	      const quser = userQuery.filter((item) => fuzzyMatch(item.user, username));
 	      users.push({
 	        domain,
 	        user: username,
@@ -15637,7 +15768,7 @@ function requireUsers () {
 
 	function parseWinLoggedOn(loggedonParts) {
 	  const loggedons = {};
-	  loggedonParts.forEach(loggedon => {
+	  loggedonParts.forEach((loggedon) => {
 	    const lines = loggedon.split('\r\n');
 
 	    const antecendent = util.getValue(lines, 'antecedent', ':', true);
@@ -15658,16 +15789,16 @@ function requireUsers () {
 	}
 
 	function parseWinUsersQuery(lines) {
-	  lines = lines.filter(item => item);
+	  lines = lines.filter((item) => item);
 	  let result = [];
 	  const header = lines[0];
 	  const headerDelimiter = [];
 	  if (header) {
-	    const start = (header[0] === ' ') ? 1 : 0;
+	    const start = header[0] === ' ' ? 1 : 0;
 	    headerDelimiter.push(start - 1);
 	    let nextSpace = 0;
 	    for (let i = start + 1; i < header.length; i++) {
-	      if (header[i] === ' ' && ((header[i - 1] === ' ') || (header[i - 1] === '.'))) {
+	      if (header[i] === ' ' && (header[i - 1] === ' ' || header[i - 1] === '.')) {
 	        nextSpace = i;
 	      } else {
 	        if (nextSpace) {
@@ -15682,7 +15813,7 @@ function requireUsers () {
 	        const tty = lines[i].substring(headerDelimiter[1] + 1, headerDelimiter[2] - 2).trim() || '';
 	        result.push({
 	          user: user,
-	          tty: tty,
+	          tty: tty
 	        });
 	      }
 	    }
@@ -15707,7 +15838,7 @@ function requireInternet () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -15719,19 +15850,18 @@ function requireInternet () {
 
 	let _platform = process.platform;
 
-	const _linux = (_platform === 'linux' || _platform === 'android');
-	const _darwin = (_platform === 'darwin');
-	const _windows = (_platform === 'win32');
-	const _freebsd = (_platform === 'freebsd');
-	const _openbsd = (_platform === 'openbsd');
-	const _netbsd = (_platform === 'netbsd');
-	const _sunos = (_platform === 'sunos');
+	const _linux = _platform === 'linux' || _platform === 'android';
+	const _darwin = _platform === 'darwin';
+	const _windows = _platform === 'win32';
+	const _freebsd = _platform === 'freebsd';
+	const _openbsd = _platform === 'openbsd';
+	const _netbsd = _platform === 'netbsd';
+	const _sunos = _platform === 'sunos';
 
 	// --------------------------
 	// check if external site is available
 
 	function inetChecksite(url, callback) {
-
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
 	      let result = {
@@ -15741,7 +15871,9 @@ function requireInternet () {
 	        ms: null
 	      };
 	      if (typeof url !== 'string') {
-	        if (callback) { callback(result); }
+	        if (callback) {
+	          callback(result);
+	        }
 	        return resolve(result);
 	      }
 	      let urlSanitized = '';
@@ -15770,24 +15902,39 @@ function requireInternet () {
 	            Object.setPrototypeOf(urlSanitized, util.stringObj);
 	          }
 
-	          if (urlSanitized.startsWith('file:') || urlSanitized.startsWith('gopher:') || urlSanitized.startsWith('telnet:') || urlSanitized.startsWith('mailto:') || urlSanitized.startsWith('news:') || urlSanitized.startsWith('nntp:')) {
-	            if (callback) { callback(result); }
+	          if (
+	            urlSanitized.startsWith('file:') ||
+	            urlSanitized.startsWith('gopher:') ||
+	            urlSanitized.startsWith('telnet:') ||
+	            urlSanitized.startsWith('mailto:') ||
+	            urlSanitized.startsWith('news:') ||
+	            urlSanitized.startsWith('nntp:')
+	          ) {
+	            if (callback) {
+	              callback(result);
+	            }
 	            return resolve(result);
 	          }
 
 	          util.checkWebsite(urlSanitized).then((res) => {
 	            result.status = res.statusCode;
-	            result.ok = res.statusCode >= 200 && res.statusCode <= 399;;
-	            result.ms = (result.ok ? res.time : null);
-	            if (callback) { callback(result); }
+	            result.ok = res.statusCode >= 200 && res.statusCode <= 399;
+	            result.ms = result.ok ? res.time : null;
+	            if (callback) {
+	              callback(result);
+	            }
 	            resolve(result);
 	          });
 	        } else {
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        }
 	      } catch (err) {
-	        if (callback) { callback(result); }
+	        if (callback) {
+	          callback(result);
+	        }
 	        resolve(result);
 	      }
 	    });
@@ -15800,7 +15947,6 @@ function requireInternet () {
 	// check inet latency
 
 	function inetLatency(host, callback) {
-
 	  // fallback - if only callback is given
 	  if (util.isFunction(host) && !callback) {
 	    callback = host;
@@ -15812,7 +15958,9 @@ function requireInternet () {
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
 	      if (typeof host !== 'string') {
-	        if (callback) { callback(null); }
+	        if (callback) {
+	          callback(null);
+	        }
 	        return resolve(null);
 	      }
 	      let hostSanitized = '';
@@ -15838,8 +15986,17 @@ function requireInternet () {
 	        Object.setPrototypeOf(hostSanitized, util.stringObj);
 	      }
 
-	      if (hostSanitized.startsWith('file:') || hostSanitized.startsWith('gopher:') || hostSanitized.startsWith('telnet:') || hostSanitized.startsWith('mailto:') || hostSanitized.startsWith('news:') || hostSanitized.startsWith('nntp:')) {
-	        if (callback) { callback(null); }
+	      if (
+	        hostSanitized.startsWith('file:') ||
+	        hostSanitized.startsWith('gopher:') ||
+	        hostSanitized.startsWith('telnet:') ||
+	        hostSanitized.startsWith('mailto:') ||
+	        hostSanitized.startsWith('news:') ||
+	        hostSanitized.startsWith('nntp:')
+	      ) {
+	        if (callback) {
+	          callback(null);
+	        }
 	        return resolve(null);
 	      }
 	      let params;
@@ -15856,7 +16013,10 @@ function requireInternet () {
 	        util.execSafe('ping', params).then((stdout) => {
 	          let result = null;
 	          if (stdout) {
-	            const lines = stdout.split('\n').filter((line) => (line.indexOf('rtt') >= 0 || line.indexOf('round-trip') >= 0 || line.indexOf('avg') >= 0)).join('\n');
+	            const lines = stdout
+	              .split('\n')
+	              .filter((line) => line.indexOf('rtt') >= 0 || line.indexOf('round-trip') >= 0 || line.indexOf('avg') >= 0)
+	              .join('\n');
 
 	            const line = lines.split('=');
 	            if (line.length > 1) {
@@ -15866,7 +16026,9 @@ function requireInternet () {
 	              }
 	            }
 	          }
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        });
 	      }
@@ -15876,7 +16038,10 @@ function requireInternet () {
 	        util.execSafe('ping', params, { timeout: 3000 }).then((stdout) => {
 	          let result = null;
 	          if (stdout) {
-	            const lines = stdout.split('\n').filter(line => line.indexOf(filt) >= 0).join('\n');
+	            const lines = stdout
+	              .split('\n')
+	              .filter((line) => line.indexOf(filt) >= 0)
+	              .join('\n');
 	            const line = lines.split('=');
 	            if (line.length > 1) {
 	              const parts = line[1].split('/');
@@ -15885,7 +16050,9 @@ function requireInternet () {
 	              }
 	            }
 	          }
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        });
 	      }
@@ -15906,11 +16073,15 @@ function requireInternet () {
 	                }
 	              });
 	            }
-	            if (callback) { callback(result); }
+	            if (callback) {
+	              callback(result);
+	            }
 	            resolve(result);
 	          });
 	        } catch (e) {
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        }
 	      }
@@ -15936,7 +16107,7 @@ function requireDockerSocket () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -15949,10 +16120,8 @@ function requireDockerSocket () {
 	const socketPath = isWin ? '//./pipe/docker_engine' : '/var/run/docker.sock';
 
 	class DockerSocket {
-
 	  getInfo(callback) {
 	    try {
-
 	      let socket = net.createConnection({ path: socketPath });
 	      let alldata = '';
 	      let data;
@@ -15961,7 +16130,7 @@ function requireDockerSocket () {
 	        socket.write('GET http:/info HTTP/1.0\r\n\r\n');
 	      });
 
-	      socket.on('data', data => {
+	      socket.on('data', (data) => {
 	        alldata = alldata + data.toString();
 	      });
 
@@ -15988,7 +16157,6 @@ function requireDockerSocket () {
 
 	  listImages(all, callback) {
 	    try {
-
 	      let socket = net.createConnection({ path: socketPath });
 	      let alldata = '';
 	      let data;
@@ -15997,7 +16165,7 @@ function requireDockerSocket () {
 	        socket.write('GET http:/images/json' + (all ? '?all=1' : '') + ' HTTP/1.0\r\n\r\n');
 	      });
 
-	      socket.on('data', data => {
+	      socket.on('data', (data) => {
 	        alldata = alldata + data.toString();
 	      });
 
@@ -16034,7 +16202,7 @@ function requireDockerSocket () {
 	          socket.write('GET http:/images/' + id + '/json?stream=0 HTTP/1.0\r\n\r\n');
 	        });
 
-	        socket.on('data', data => {
+	        socket.on('data', (data) => {
 	          alldata = alldata + data.toString();
 	        });
 
@@ -16064,7 +16232,6 @@ function requireDockerSocket () {
 
 	  listContainers(all, callback) {
 	    try {
-
 	      let socket = net.createConnection({ path: socketPath });
 	      let alldata = '';
 	      let data;
@@ -16073,7 +16240,7 @@ function requireDockerSocket () {
 	        socket.write('GET http:/containers/json' + (all ? '?all=1' : '') + ' HTTP/1.0\r\n\r\n');
 	      });
 
-	      socket.on('data', data => {
+	      socket.on('data', (data) => {
 	        alldata = alldata + data.toString();
 	      });
 
@@ -16110,7 +16277,7 @@ function requireDockerSocket () {
 	          socket.write('GET http:/containers/' + id + '/stats?stream=0 HTTP/1.0\r\n\r\n');
 	        });
 
-	        socket.on('data', data => {
+	        socket.on('data', (data) => {
 	          alldata = alldata + data.toString();
 	        });
 
@@ -16150,7 +16317,7 @@ function requireDockerSocket () {
 	          socket.write('GET http:/containers/' + id + '/json?stream=0 HTTP/1.0\r\n\r\n');
 	        });
 
-	        socket.on('data', data => {
+	        socket.on('data', (data) => {
 	          alldata = alldata + data.toString();
 	        });
 
@@ -16190,7 +16357,7 @@ function requireDockerSocket () {
 	          socket.write('GET http:/containers/' + id + '/top?ps_args=-opid,ppid,pgid,vsz,time,etime,nice,ruser,user,rgroup,group,stat,rss,args HTTP/1.0\r\n\r\n');
 	        });
 
-	        socket.on('data', data => {
+	        socket.on('data', (data) => {
 	          alldata = alldata + data.toString();
 	        });
 
@@ -16220,7 +16387,6 @@ function requireDockerSocket () {
 
 	  listVolumes(callback) {
 	    try {
-
 	      let socket = net.createConnection({ path: socketPath });
 	      let alldata = '';
 	      let data;
@@ -16229,7 +16395,7 @@ function requireDockerSocket () {
 	        socket.write('GET http:/volumes HTTP/1.0\r\n\r\n');
 	      });
 
-	      socket.on('data', data => {
+	      socket.on('data', (data) => {
 	        alldata = alldata + data.toString();
 	      });
 
@@ -16270,7 +16436,7 @@ function requireDocker () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -16282,12 +16448,11 @@ function requireDocker () {
 	const DockerSocket = requireDockerSocket();
 
 	let _platform = process.platform;
-	const _windows = (_platform === 'win32');
+	const _windows = _platform === 'win32';
 
 	let _docker_container_stats = {};
 	let _docker_socket;
 	let _docker_last_read = 0;
-
 
 	// --------------------------
 	// get containers (parameter all: get also inactive/exited containers)
@@ -16347,7 +16512,9 @@ function requireDocker () {
 	        result.isolation = data.Isolation;
 	        result.initBinary = data.InitBinary;
 	        result.productLicense = data.ProductLicense;
-	        if (callback) { callback(result); }
+	        if (callback) {
+	          callback(result);
+	        }
 	        resolve(result);
 	      });
 	    });
@@ -16357,7 +16524,6 @@ function requireDocker () {
 	docker.dockerInfo = dockerInfo;
 
 	function dockerImages(all, callback) {
-
 	  // fallback - if only callback is given
 	  if (util.isFunction(all) && !callback) {
 	    callback = all;
@@ -16379,36 +16545,40 @@ function requireDocker () {
 	      }
 	      const workload = [];
 
-	      _docker_socket.listImages(all, data => {
+	      _docker_socket.listImages(all, (data) => {
 	        let dockerImages = {};
 	        try {
 	          dockerImages = data;
 	          if (dockerImages && Object.prototype.toString.call(dockerImages) === '[object Array]' && dockerImages.length > 0) {
-
 	            dockerImages.forEach(function (element) {
-
 	              if (element.Names && Object.prototype.toString.call(element.Names) === '[object Array]' && element.Names.length > 0) {
 	                element.Name = element.Names[0].replace(/^\/|\/$/g, '');
 	              }
 	              workload.push(dockerImagesInspect(element.Id.trim(), element));
 	            });
 	            if (workload.length) {
-	              Promise.all(
-	                workload
-	              ).then((data) => {
-	                if (callback) { callback(data); }
+	              Promise.all(workload).then((data) => {
+	                if (callback) {
+	                  callback(data);
+	                }
 	                resolve(data);
 	              });
 	            } else {
-	              if (callback) { callback(result); }
+	              if (callback) {
+	                callback(result);
+	              }
 	              resolve(result);
 	            }
 	          } else {
-	            if (callback) { callback(result); }
+	            if (callback) {
+	              callback(result);
+	            }
 	            resolve(result);
 	          }
 	        } catch (err) {
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        }
 	      });
@@ -16428,12 +16598,11 @@ function requireDocker () {
 	      }
 	      const imageIDSanitized = (util.isPrototypePolluted() ? '' : util.sanitizeShellString(imageID, true)).trim();
 	      if (imageIDSanitized) {
-
 	        if (!_docker_socket) {
 	          _docker_socket = new DockerSocket();
 	        }
 
-	        _docker_socket.inspectImage(imageIDSanitized.trim(), data => {
+	        _docker_socket.inspectImage(imageIDSanitized.trim(), (data) => {
 	          try {
 	            resolve({
 	              id: payload.Id,
@@ -16453,7 +16622,7 @@ function requireDocker () {
 	              repoDigests: data.RepoDigests ? data.RepoDigests : {},
 	              repoTags: data.RepoTags ? data.RepoTags : {},
 	              config: data.Config ? data.Config : {},
-	              rootFS: data.RootFS ? data.RootFS : {},
+	              rootFS: data.RootFS ? data.RootFS : {}
 	            });
 	          } catch (err) {
 	            resolve();
@@ -16469,16 +16638,15 @@ function requireDocker () {
 	docker.dockerImages = dockerImages;
 
 	function dockerContainers(all, callback) {
-
 	  function inContainers(containers, id) {
-	    let filtered = containers.filter(obj => {
+	    let filtered = containers.filter((obj) => {
 	      /**
 	       * @namespace
 	       * @property {string}  Id
 	       */
-	      return (obj.Id && (obj.Id === id));
+	      return obj.Id && obj.Id === id;
 	    });
-	    return (filtered.length > 0);
+	    return filtered.length > 0;
 	  }
 
 	  // fallback - if only callback is given
@@ -16502,7 +16670,7 @@ function requireDocker () {
 	      }
 	      const workload = [];
 
-	      _docker_socket.listContainers(all, data => {
+	      _docker_socket.listContainers(all, (data) => {
 	        let docker_containers = {};
 	        try {
 	          docker_containers = data;
@@ -16510,40 +16678,49 @@ function requireDocker () {
 	            // GC in _docker_container_stats
 	            for (let key in _docker_container_stats) {
 	              if ({}.hasOwnProperty.call(_docker_container_stats, key)) {
-	                if (!inContainers(docker_containers, key)) { delete _docker_container_stats[key]; }
+	                if (!inContainers(docker_containers, key)) {
+	                  delete _docker_container_stats[key];
+	                }
 	              }
 	            }
 
 	            docker_containers.forEach(function (element) {
-
 	              if (element.Names && Object.prototype.toString.call(element.Names) === '[object Array]' && element.Names.length > 0) {
 	                element.Name = element.Names[0].replace(/^\/|\/$/g, '');
 	              }
 	              workload.push(dockerContainerInspect(element.Id.trim(), element));
 	            });
 	            if (workload.length) {
-	              Promise.all(
-	                workload
-	              ).then((data) => {
-	                if (callback) { callback(data); }
+	              Promise.all(workload).then((data) => {
+	                if (callback) {
+	                  callback(data);
+	                }
 	                resolve(data);
 	              });
 	            } else {
-	              if (callback) { callback(result); }
+	              if (callback) {
+	                callback(result);
+	              }
 	              resolve(result);
 	            }
 	          } else {
-	            if (callback) { callback(result); }
+	            if (callback) {
+	              callback(result);
+	            }
 	            resolve(result);
 	          }
 	        } catch (err) {
 	          // GC in _docker_container_stats
 	          for (let key in _docker_container_stats) {
 	            if ({}.hasOwnProperty.call(_docker_container_stats, key)) {
-	              if (!inContainers(docker_containers, key)) { delete _docker_container_stats[key]; }
+	              if (!inContainers(docker_containers, key)) {
+	                delete _docker_container_stats[key];
+	              }
 	            }
 	          }
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        }
 	      });
@@ -16563,12 +16740,11 @@ function requireDocker () {
 	      }
 	      const containerIdSanitized = (util.isPrototypePolluted() ? '' : util.sanitizeShellString(containerID, true)).trim();
 	      if (containerIdSanitized) {
-
 	        if (!_docker_socket) {
 	          _docker_socket = new DockerSocket();
 	        }
 
-	        _docker_socket.getInspect(containerIdSanitized.trim(), data => {
+	        _docker_socket.getInspect(containerIdSanitized.trim(), (data) => {
 	          try {
 	            resolve({
 	              id: payload.Id,
@@ -16587,7 +16763,7 @@ function requireDocker () {
 	              platform: data.Platform || '',
 	              driver: data.Driver || '',
 	              ports: payload.Ports,
-	              mounts: payload.Mounts,
+	              mounts: payload.Mounts
 	              // hostconfig: payload.HostConfig,
 	              // network: payload.NetworkSettings
 	            });
@@ -16628,8 +16804,7 @@ function requireDocker () {
 	      // calculate the change for the cpu usage of the container in between readings
 	      if (precpu_stats.online_cpus) {
 	        cpuPercent = (cpuDelta / systemDelta) * precpu_stats.online_cpus * 100.0;
-	      }
-	      else {
+	      } else {
 	        cpuPercent = (cpuDelta / systemDelta) * cpu_stats.cpu_usage.percpu_usage.length * 100.0;
 	      }
 	    }
@@ -16639,10 +16814,10 @@ function requireDocker () {
 	    let nanoSecNow = util.nanoSeconds();
 	    let cpuPercent = 0.0;
 	    if (_docker_last_read > 0) {
-	      let possIntervals = (nanoSecNow - _docker_last_read); //  / 100 * os.cpus().length;
+	      let possIntervals = nanoSecNow - _docker_last_read; //  / 100 * os.cpus().length;
 	      let intervalsUsed = cpu_stats.cpu_usage.total_usage - precpu_stats.cpu_usage.total_usage;
 	      if (possIntervals > 0) {
-	        cpuPercent = 100.0 * intervalsUsed / possIntervals;
+	        cpuPercent = (100.0 * intervalsUsed) / possIntervals;
 	      }
 	    }
 	    _docker_last_read = nanoSecNow;
@@ -16655,7 +16830,9 @@ function requireDocker () {
 	  let wx;
 	  for (let key in networks) {
 	    // skip loop if the property is from prototype
-	    if (!{}.hasOwnProperty.call(networks, key)) { continue; }
+	    if (!{}.hasOwnProperty.call(networks, key)) {
+	      continue;
+	    }
 
 	    /**
 	     * @namespace
@@ -16682,7 +16859,12 @@ function requireDocker () {
 	   * @namespace
 	   * @property {Array}  io_service_bytes_recursive
 	   */
-	  if (blkio_stats && blkio_stats.io_service_bytes_recursive && Object.prototype.toString.call(blkio_stats.io_service_bytes_recursive) === '[object Array]' && blkio_stats.io_service_bytes_recursive.length > 0) {
+	  if (
+	    blkio_stats &&
+	    blkio_stats.io_service_bytes_recursive &&
+	    Object.prototype.toString.call(blkio_stats.io_service_bytes_recursive) === '[object Array]' &&
+	    blkio_stats.io_service_bytes_recursive.length > 0
+	  ) {
 	    blkio_stats.io_service_bytes_recursive.forEach(function (element) {
 	      /**
 	       * @namespace
@@ -16702,11 +16884,9 @@ function requireDocker () {
 	}
 
 	function dockerContainerStats(containerIDs, callback) {
-
 	  let containerArray = [];
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
-
 	      // fallback - if only callback is given
 	      if (util.isFunction(containerIDs) && !callback) {
 	        callback = containerIDs;
@@ -16714,7 +16894,9 @@ function requireDocker () {
 	      } else {
 	        containerIDs = containerIDs || '*';
 	        if (typeof containerIDs !== 'string') {
-	          if (callback) { callback([]); }
+	          if (callback) {
+	            callback([]);
+	          }
 	          return resolve([]);
 	        }
 	        let containerIDsSanitized = '';
@@ -16756,17 +16938,21 @@ function requireDocker () {
 	      const workload = [];
 	      if (containerArray.length && containerArray[0].trim() === '*') {
 	        containerArray = [];
-	        dockerContainers().then(allContainers => {
+	        dockerContainers().then((allContainers) => {
 	          for (let container of allContainers) {
 	            containerArray.push(container.id.substring(0, 12));
 	          }
 	          if (containerArray.length) {
-	            dockerContainerStats(containerArray.join(',')).then(result => {
-	              if (callback) { callback(result); }
+	            dockerContainerStats(containerArray.join(',')).then((result) => {
+	              if (callback) {
+	                callback(result);
+	              }
 	              resolve(result);
 	            });
 	          } else {
-	            if (callback) { callback(result); }
+	            if (callback) {
+	              callback(result);
+	            }
 	            resolve(result);
 	          }
 	        });
@@ -16775,14 +16961,16 @@ function requireDocker () {
 	          workload.push(dockerContainerStatsSingle(containerID.trim()));
 	        }
 	        if (workload.length) {
-	          Promise.all(
-	            workload
-	          ).then((data) => {
-	            if (callback) { callback(data); }
+	          Promise.all(workload).then((data) => {
+	            if (callback) {
+	              callback(data);
+	            }
 	            resolve(data);
 	          });
 	        } else {
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        }
 	      }
@@ -16814,35 +17002,40 @@ function requireDocker () {
 	    cpuStats: {},
 	    precpuStats: {},
 	    memoryStats: {},
-	    networks: {},
+	    networks: {}
 	  };
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
 	      if (containerID) {
-
 	        if (!_docker_socket) {
 	          _docker_socket = new DockerSocket();
 	        }
 
-	        _docker_socket.getInspect(containerID, dataInspect => {
+	        _docker_socket.getInspect(containerID, (dataInspect) => {
 	          try {
-	            _docker_socket.getStats(containerID, data => {
+	            _docker_socket.getStats(containerID, (data) => {
 	              try {
 	                let stats = data;
 	                if (!stats.message) {
-	                  if (data.id) { result.id = data.id; }
-	                  result.memUsage = (stats.memory_stats && stats.memory_stats.usage ? stats.memory_stats.usage : 0);
-	                  result.memLimit = (stats.memory_stats && stats.memory_stats.limit ? stats.memory_stats.limit : 0);
-	                  result.memPercent = (stats.memory_stats && stats.memory_stats.usage && stats.memory_stats.limit ? stats.memory_stats.usage / stats.memory_stats.limit * 100.0 : 0);
-	                  result.cpuPercent = (stats.cpu_stats && stats.precpu_stats ? docker_calcCPUPercent(stats.cpu_stats, stats.precpu_stats) : 0);
-	                  result.pids = (stats.pids_stats && stats.pids_stats.current ? stats.pids_stats.current : 0);
-	                  result.restartCount = (dataInspect.RestartCount ? dataInspect.RestartCount : 0);
-	                  if (stats.networks) { result.netIO = docker_calcNetworkIO(stats.networks); }
-	                  if (stats.blkio_stats) { result.blockIO = docker_calcBlockIO(stats.blkio_stats); }
-	                  result.cpuStats = (stats.cpu_stats ? stats.cpu_stats : {});
-	                  result.precpuStats = (stats.precpu_stats ? stats.precpu_stats : {});
-	                  result.memoryStats = (stats.memory_stats ? stats.memory_stats : {});
-	                  result.networks = (stats.networks ? stats.networks : {});
+	                  if (data.id) {
+	                    result.id = data.id;
+	                  }
+	                  result.memUsage = stats.memory_stats && stats.memory_stats.usage ? stats.memory_stats.usage : 0;
+	                  result.memLimit = stats.memory_stats && stats.memory_stats.limit ? stats.memory_stats.limit : 0;
+	                  result.memPercent = stats.memory_stats && stats.memory_stats.usage && stats.memory_stats.limit ? (stats.memory_stats.usage / stats.memory_stats.limit) * 100.0 : 0;
+	                  result.cpuPercent = stats.cpu_stats && stats.precpu_stats ? docker_calcCPUPercent(stats.cpu_stats, stats.precpu_stats) : 0;
+	                  result.pids = stats.pids_stats && stats.pids_stats.current ? stats.pids_stats.current : 0;
+	                  result.restartCount = dataInspect.RestartCount ? dataInspect.RestartCount : 0;
+	                  if (stats.networks) {
+	                    result.netIO = docker_calcNetworkIO(stats.networks);
+	                  }
+	                  if (stats.blkio_stats) {
+	                    result.blockIO = docker_calcBlockIO(stats.blkio_stats);
+	                  }
+	                  result.cpuStats = stats.cpu_stats ? stats.cpu_stats : {};
+	                  result.precpuStats = stats.precpu_stats ? stats.precpu_stats : {};
+	                  result.memoryStats = stats.memory_stats ? stats.memory_stats : {};
+	                  result.networks = stats.networks ? stats.networks : {};
 	                }
 	              } catch (err) {
 	                util.noop();
@@ -16877,12 +17070,11 @@ function requireDocker () {
 	      const containerIdSanitized = (util.isPrototypePolluted() ? '' : util.sanitizeShellString(containerID, true)).trim();
 
 	      if (containerIdSanitized) {
-
 	        if (!_docker_socket) {
 	          _docker_socket = new DockerSocket();
 	        }
 
-	        _docker_socket.getProcesses(containerIdSanitized, data => {
+	        _docker_socket.getProcesses(containerIdSanitized, (data) => {
 	          /**
 	           * @namespace
 	           * @property {Array}  Titles
@@ -16908,33 +17100,37 @@ function requireDocker () {
 	              let pos_rss = titles.indexOf('RSS');
 	              let pos_command = titles.indexOf('COMMAND');
 
-	              data.Processes.forEach(process => {
+	              data.Processes.forEach((process) => {
 	                result.push({
-	                  pidHost: (pos_pid >= 0 ? process[pos_pid] : ''),
-	                  ppid: (pos_ppid >= 0 ? process[pos_ppid] : ''),
-	                  pgid: (pos_pgid >= 0 ? process[pos_pgid] : ''),
-	                  user: (pos_user >= 0 ? process[pos_user] : ''),
-	                  ruser: (pos_ruser >= 0 ? process[pos_ruser] : ''),
-	                  group: (pos_group >= 0 ? process[pos_group] : ''),
-	                  rgroup: (pos_rgroup >= 0 ? process[pos_rgroup] : ''),
-	                  stat: (pos_stat >= 0 ? process[pos_stat] : ''),
-	                  time: (pos_time >= 0 ? process[pos_time] : ''),
-	                  elapsed: (pos_elapsed >= 0 ? process[pos_elapsed] : ''),
-	                  nice: (pos_ni >= 0 ? process[pos_ni] : ''),
-	                  rss: (pos_rss >= 0 ? process[pos_rss] : ''),
-	                  vsz: (pos_vsz >= 0 ? process[pos_vsz] : ''),
-	                  command: (pos_command >= 0 ? process[pos_command] : '')
+	                  pidHost: pos_pid >= 0 ? process[pos_pid] : '',
+	                  ppid: pos_ppid >= 0 ? process[pos_ppid] : '',
+	                  pgid: pos_pgid >= 0 ? process[pos_pgid] : '',
+	                  user: pos_user >= 0 ? process[pos_user] : '',
+	                  ruser: pos_ruser >= 0 ? process[pos_ruser] : '',
+	                  group: pos_group >= 0 ? process[pos_group] : '',
+	                  rgroup: pos_rgroup >= 0 ? process[pos_rgroup] : '',
+	                  stat: pos_stat >= 0 ? process[pos_stat] : '',
+	                  time: pos_time >= 0 ? process[pos_time] : '',
+	                  elapsed: pos_elapsed >= 0 ? process[pos_elapsed] : '',
+	                  nice: pos_ni >= 0 ? process[pos_ni] : '',
+	                  rss: pos_rss >= 0 ? process[pos_rss] : '',
+	                  vsz: pos_vsz >= 0 ? process[pos_vsz] : '',
+	                  command: pos_command >= 0 ? process[pos_command] : ''
 	                });
 	              });
 	            }
 	          } catch (err) {
 	            util.noop();
 	          }
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        });
 	      } else {
-	        if (callback) { callback(result); }
+	        if (callback) {
+	          callback(result);
+	        }
 	        resolve(result);
 	      }
 	    });
@@ -16944,7 +17140,6 @@ function requireDocker () {
 	docker.dockerContainerProcesses = dockerContainerProcesses;
 
 	function dockerVolumes(callback) {
-
 	  let result = [];
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
@@ -16956,9 +17151,7 @@ function requireDocker () {
 	        try {
 	          dockerVolumes = data;
 	          if (dockerVolumes && dockerVolumes.Volumes && Object.prototype.toString.call(dockerVolumes.Volumes) === '[object Array]' && dockerVolumes.Volumes.length > 0) {
-
 	            dockerVolumes.Volumes.forEach(function (element) {
-
 	              result.push({
 	                name: element.Name,
 	                driver: element.Driver,
@@ -16966,17 +17159,23 @@ function requireDocker () {
 	                mountpoint: element.Mountpoint,
 	                options: element.Options,
 	                scope: element.Scope,
-	                created: element.CreatedAt ? Math.round(new Date(element.CreatedAt).getTime() / 1000) : 0,
+	                created: element.CreatedAt ? Math.round(new Date(element.CreatedAt).getTime() / 1000) : 0
 	              });
 	            });
-	            if (callback) { callback(result); }
+	            if (callback) {
+	              callback(result);
+	            }
 	            resolve(result);
 	          } else {
-	            if (callback) { callback(result); }
+	            if (callback) {
+	              callback(result);
+	            }
 	            resolve(result);
 	          }
 	        } catch (err) {
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        }
 	      });
@@ -16989,7 +17188,7 @@ function requireDocker () {
 	function dockerAll(callback) {
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
-	      dockerContainers(true).then(result => {
+	      dockerContainers(true).then((result) => {
 	        if (result && Object.prototype.toString.call(result) === '[object Array]' && result.length > 0) {
 	          let l = result.length;
 	          result.forEach(function (element) {
@@ -17007,12 +17206,14 @@ function requireDocker () {
 	              element.memoryStats = res[0].memoryStats;
 	              element.networks = res[0].networks;
 
-	              dockerContainerProcesses(element.id).then(processes => {
+	              dockerContainerProcesses(element.id).then((processes) => {
 	                element.processes = processes;
 
 	                l -= 1;
 	                if (l === 0) {
-	                  if (callback) { callback(result); }
+	                  if (callback) {
+	                    callback(result);
+	                  }
 	                  resolve(result);
 	                }
 	              });
@@ -17020,7 +17221,9 @@ function requireDocker () {
 	            });
 	          });
 	        } else {
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        }
 	      });
@@ -17045,7 +17248,7 @@ function requireVirtualbox () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -17058,7 +17261,6 @@ function requireVirtualbox () {
 	const util = requireUtil$7();
 
 	function vboxInfo(callback) {
-
 	  // fallback - if only callback is given
 	  let result = [];
 	  return new Promise((resolve) => {
@@ -17067,7 +17269,7 @@ function requireVirtualbox () {
 	        exec(util.getVboxmanage() + ' list vms --long', function (error, stdout) {
 	          let parts = (os.EOL + stdout.toString()).split(os.EOL + 'Name:');
 	          parts.shift();
-	          parts.forEach(part => {
+	          parts.forEach((part) => {
 	            const lines = ('Name:' + part).split(os.EOL);
 	            const state = util.getValue(lines, 'State');
 	            const running = state.startsWith('running');
@@ -17129,15 +17331,19 @@ function requireVirtualbox () {
 	              bootDevice3: util.getValue(lines, 'Boot Device 3'),
 	              bootDevice4: util.getValue(lines, 'Boot Device 4'),
 	              timeOffset: util.getValue(lines, 'Time offset'),
-	              rtc: util.getValue(lines, 'RTC'),
+	              rtc: util.getValue(lines, 'RTC')
 	            });
 	          });
 
-	          if (callback) { callback(result); }
+	          if (callback) {
+	            callback(result);
+	          }
 	          resolve(result);
 	        });
 	      } catch (e) {
-	        if (callback) { callback(result); }
+	        if (callback) {
+	          callback(result);
+	        }
 	        resolve(result);
 	      }
 	    });
@@ -17161,7 +17367,7 @@ function requirePrinter () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -17174,13 +17380,13 @@ function requirePrinter () {
 
 	let _platform = process.platform;
 
-	const _linux = (_platform === 'linux' || _platform === 'android');
-	const _darwin = (_platform === 'darwin');
-	const _windows = (_platform === 'win32');
-	const _freebsd = (_platform === 'freebsd');
-	const _openbsd = (_platform === 'openbsd');
-	const _netbsd = (_platform === 'netbsd');
-	const _sunos = (_platform === 'sunos');
+	const _linux = _platform === 'linux' || _platform === 'android';
+	const _darwin = _platform === 'darwin';
+	const _windows = _platform === 'win32';
+	const _freebsd = _platform === 'freebsd';
+	const _openbsd = _platform === 'openbsd';
+	const _netbsd = _platform === 'netbsd';
+	const _sunos = _platform === 'sunos';
 
 	const winPrinterStatus = {
 	  1: 'Other',
@@ -17189,7 +17395,7 @@ function requirePrinter () {
 	  4: 'Printing',
 	  5: 'Warmup',
 	  6: 'Stopped Printing',
-	  7: 'Offline',
+	  7: 'Offline'
 	};
 
 	function parseLinuxCupsHeader(lines) {
@@ -17226,7 +17432,7 @@ function requirePrinter () {
 	  result.model = lines.length > 0 && lines[0] ? lines[0].split(' ')[0] : '';
 	  result.uri = null;
 	  result.uuid = null;
-	  result.status = lines.length > 0 && lines[0] ? (lines[0].indexOf(' idle') > 0 ? 'idle' : (lines[0].indexOf(' printing') > 0 ? 'printing' : 'unknown')) : null;
+	  result.status = lines.length > 0 && lines[0] ? (lines[0].indexOf(' idle') > 0 ? 'idle' : lines[0].indexOf(' printing') > 0 ? 'printing' : 'unknown') : null;
 	  result.local = util.getValue(lines, 'Location', ':', true).toLowerCase().startsWith('local');
 	  result.default = null;
 	  result.shared = util.getValue(lines, 'Shared', ' ').toLowerCase().startsWith('yes');
@@ -17268,7 +17474,6 @@ function requirePrinter () {
 	}
 
 	function printer$1(callback) {
-
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
 	      let result = [];
@@ -17380,7 +17585,7 @@ function requireUsb () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -17393,26 +17598,36 @@ function requireUsb () {
 
 	let _platform = process.platform;
 
-	const _linux = (_platform === 'linux' || _platform === 'android');
-	const _darwin = (_platform === 'darwin');
-	const _windows = (_platform === 'win32');
-	const _freebsd = (_platform === 'freebsd');
-	const _openbsd = (_platform === 'openbsd');
-	const _netbsd = (_platform === 'netbsd');
-	const _sunos = (_platform === 'sunos');
+	const _linux = _platform === 'linux' || _platform === 'android';
+	const _darwin = _platform === 'darwin';
+	const _windows = _platform === 'win32';
+	const _freebsd = _platform === 'freebsd';
+	const _openbsd = _platform === 'openbsd';
+	const _netbsd = _platform === 'netbsd';
+	const _sunos = _platform === 'sunos';
 
 	function getLinuxUsbType(type, name) {
 	  let result = type;
 	  const str = (name + ' ' + type).toLowerCase();
-	  if (str.indexOf('camera') >= 0) { result = 'Camera'; }
-	  else if (str.indexOf('hub') >= 0) { result = 'Hub'; }
-	  else if (str.indexOf('keybrd') >= 0) { result = 'Keyboard'; }
-	  else if (str.indexOf('keyboard') >= 0) { result = 'Keyboard'; }
-	  else if (str.indexOf('mouse') >= 0) { result = 'Mouse'; }
-	  else if (str.indexOf('stora') >= 0) { result = 'Storage'; }
-	  else if (str.indexOf('microp') >= 0) { result = 'Microphone'; }
-	  else if (str.indexOf('headset') >= 0) { result = 'Audio'; }
-	  else if (str.indexOf('audio') >= 0) { result = 'Audio'; }
+	  if (str.indexOf('camera') >= 0) {
+	    result = 'Camera';
+	  } else if (str.indexOf('hub') >= 0) {
+	    result = 'Hub';
+	  } else if (str.indexOf('keybrd') >= 0) {
+	    result = 'Keyboard';
+	  } else if (str.indexOf('keyboard') >= 0) {
+	    result = 'Keyboard';
+	  } else if (str.indexOf('mouse') >= 0) {
+	    result = 'Mouse';
+	  } else if (str.indexOf('stora') >= 0) {
+	    result = 'Storage';
+	  } else if (str.indexOf('microp') >= 0) {
+	    result = 'Microphone';
+	  } else if (str.indexOf('headset') >= 0) {
+	    result = 'Audio';
+	  } else if (str.indexOf('audio') >= 0) {
+	    result = 'Audio';
+	  }
 
 	  return result;
 	}
@@ -17471,21 +17686,37 @@ function requireUsb () {
 
 	function getDarwinUsbType(name) {
 	  let result = '';
-	  if (name.indexOf('camera') >= 0) { result = 'Camera'; }
-	  else if (name.indexOf('touch bar') >= 0) { result = 'Touch Bar'; }
-	  else if (name.indexOf('controller') >= 0) { result = 'Controller'; }
-	  else if (name.indexOf('headset') >= 0) { result = 'Audio'; }
-	  else if (name.indexOf('keyboard') >= 0) { result = 'Keyboard'; }
-	  else if (name.indexOf('trackpad') >= 0) { result = 'Trackpad'; }
-	  else if (name.indexOf('sensor') >= 0) { result = 'Sensor'; }
-	  else if (name.indexOf('bthusb') >= 0) { result = 'Bluetooth'; }
-	  else if (name.indexOf('bth') >= 0) { result = 'Bluetooth'; }
-	  else if (name.indexOf('rfcomm') >= 0) { result = 'Bluetooth'; }
-	  else if (name.indexOf('usbhub') >= 0) { result = 'Hub'; }
-	  else if (name.indexOf(' hub') >= 0) { result = 'Hub'; }
-	  else if (name.indexOf('mouse') >= 0) { result = 'Mouse'; }
-	  else if (name.indexOf('microp') >= 0) { result = 'Microphone'; }
-	  else if (name.indexOf('removable') >= 0) { result = 'Storage'; }
+	  if (name.indexOf('camera') >= 0) {
+	    result = 'Camera';
+	  } else if (name.indexOf('touch bar') >= 0) {
+	    result = 'Touch Bar';
+	  } else if (name.indexOf('controller') >= 0) {
+	    result = 'Controller';
+	  } else if (name.indexOf('headset') >= 0) {
+	    result = 'Audio';
+	  } else if (name.indexOf('keyboard') >= 0) {
+	    result = 'Keyboard';
+	  } else if (name.indexOf('trackpad') >= 0) {
+	    result = 'Trackpad';
+	  } else if (name.indexOf('sensor') >= 0) {
+	    result = 'Sensor';
+	  } else if (name.indexOf('bthusb') >= 0) {
+	    result = 'Bluetooth';
+	  } else if (name.indexOf('bth') >= 0) {
+	    result = 'Bluetooth';
+	  } else if (name.indexOf('rfcomm') >= 0) {
+	    result = 'Bluetooth';
+	  } else if (name.indexOf('usbhub') >= 0) {
+	    result = 'Hub';
+	  } else if (name.indexOf(' hub') >= 0) {
+	    result = 'Hub';
+	  } else if (name.indexOf('mouse') >= 0) {
+	    result = 'Mouse';
+	  } else if (name.indexOf('microp') >= 0) {
+	    result = 'Microphone';
+	  } else if (name.indexOf('removable') >= 0) {
+	    result = 'Storage';
+	  }
 	  return result;
 	}
 
@@ -17549,15 +17780,25 @@ function requireUsb () {
 
 	function getWindowsUsbTypeCreation(creationclass, name) {
 	  let result = '';
-	  if (name.indexOf('storage') >= 0) { result = 'Storage'; }
-	  else if (name.indexOf('speicher') >= 0) { result = 'Storage'; }
-	  else if (creationclass.indexOf('usbhub') >= 0) { result = 'Hub'; }
-	  else if (creationclass.indexOf('storage') >= 0) { result = 'Storage'; }
-	  else if (creationclass.indexOf('usbcontroller') >= 0) { result = 'Controller'; }
-	  else if (creationclass.indexOf('keyboard') >= 0) { result = 'Keyboard'; }
-	  else if (creationclass.indexOf('pointing') >= 0) { result = 'Mouse'; }
-	  else if (creationclass.indexOf('microp') >= 0) { result = 'Microphone'; }
-	  else if (creationclass.indexOf('disk') >= 0) { result = 'Storage'; }
+	  if (name.indexOf('storage') >= 0) {
+	    result = 'Storage';
+	  } else if (name.indexOf('speicher') >= 0) {
+	    result = 'Storage';
+	  } else if (creationclass.indexOf('usbhub') >= 0) {
+	    result = 'Hub';
+	  } else if (creationclass.indexOf('storage') >= 0) {
+	    result = 'Storage';
+	  } else if (creationclass.indexOf('usbcontroller') >= 0) {
+	    result = 'Controller';
+	  } else if (creationclass.indexOf('keyboard') >= 0) {
+	    result = 'Keyboard';
+	  } else if (creationclass.indexOf('pointing') >= 0) {
+	    result = 'Mouse';
+	  } else if (creationclass.indexOf('microp') >= 0) {
+	    result = 'Microphone';
+	  } else if (creationclass.indexOf('disk') >= 0) {
+	    result = 'Storage';
+	  }
 	  return result;
 	}
 
@@ -17584,7 +17825,6 @@ function requireUsb () {
 	}
 
 	function usb$1(callback) {
-
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
 	      let result = [];
@@ -17608,7 +17848,7 @@ function requireUsb () {
 	        let cmd = 'ioreg -p IOUSB -c AppleUSBRootHubDevice -w0 -l';
 	        exec(cmd, { maxBuffer: 1024 * 1024 * 128 }, function (error, stdout) {
 	          if (!error) {
-	            const parts = (stdout.toString()).split(' +-o ');
+	            const parts = stdout.toString().split(' +-o ');
 	            for (let i = 1; i < parts.length; i++) {
 	              const usb = parseDarwinUsb(parts[i]);
 	              if (usb) {
@@ -17632,7 +17872,7 @@ function requireUsb () {
 	            const parts = stdout.toString().split(/\n\s*\n/);
 	            for (let i = 0; i < parts.length; i++) {
 	              const usb = parseWindowsUsb(parts[i].split('\n'), i);
-	              if (usb && result.filter(x => x.deviceId === usb.deviceId).length === 0) {
+	              if (usb && result.filter((x) => x.deviceId === usb.deviceId).length === 0) {
 	                result.push(usb);
 	              }
 	            }
@@ -17667,7 +17907,7 @@ function requireAudio () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -17681,32 +17921,60 @@ function requireAudio () {
 
 	let _platform = process.platform;
 
-	const _linux = (_platform === 'linux' || _platform === 'android');
-	const _darwin = (_platform === 'darwin');
-	const _windows = (_platform === 'win32');
-	const _freebsd = (_platform === 'freebsd');
-	const _openbsd = (_platform === 'openbsd');
-	const _netbsd = (_platform === 'netbsd');
-	const _sunos = (_platform === 'sunos');
+	const _linux = _platform === 'linux' || _platform === 'android';
+	const _darwin = _platform === 'darwin';
+	const _windows = _platform === 'win32';
+	const _freebsd = _platform === 'freebsd';
+	const _openbsd = _platform === 'openbsd';
+	const _netbsd = _platform === 'netbsd';
+	const _sunos = _platform === 'sunos';
 
 	function parseAudioType(str, input, output) {
 	  str = str.toLowerCase();
 	  let result = '';
 
-	  if (str.indexOf('input') >= 0) { result = 'Microphone'; }
-	  if (str.indexOf('display audio') >= 0) { result = 'Speaker'; }
-	  if (str.indexOf('speak') >= 0) { result = 'Speaker'; }
-	  if (str.indexOf('laut') >= 0) { result = 'Speaker'; }
-	  if (str.indexOf('loud') >= 0) { result = 'Speaker'; }
-	  if (str.indexOf('head') >= 0) { result = 'Headset'; }
-	  if (str.indexOf('mic') >= 0) { result = 'Microphone'; }
-	  if (str.indexOf('mikr') >= 0) { result = 'Microphone'; }
-	  if (str.indexOf('phone') >= 0) { result = 'Phone'; }
-	  if (str.indexOf('controll') >= 0) { result = 'Controller'; }
-	  if (str.indexOf('line o') >= 0) { result = 'Line Out'; }
-	  if (str.indexOf('digital o') >= 0) { result = 'Digital Out'; }
-	  if (str.indexOf('smart sound technology') >= 0) { result = 'Digital Signal Processor'; }
-	  if (str.indexOf('high definition audio') >= 0) { result = 'Sound Driver'; }
+	  if (str.indexOf('input') >= 0) {
+	    result = 'Microphone';
+	  }
+	  if (str.indexOf('display audio') >= 0) {
+	    result = 'Speaker';
+	  }
+	  if (str.indexOf('speak') >= 0) {
+	    result = 'Speaker';
+	  }
+	  if (str.indexOf('laut') >= 0) {
+	    result = 'Speaker';
+	  }
+	  if (str.indexOf('loud') >= 0) {
+	    result = 'Speaker';
+	  }
+	  if (str.indexOf('head') >= 0) {
+	    result = 'Headset';
+	  }
+	  if (str.indexOf('mic') >= 0) {
+	    result = 'Microphone';
+	  }
+	  if (str.indexOf('mikr') >= 0) {
+	    result = 'Microphone';
+	  }
+	  if (str.indexOf('phone') >= 0) {
+	    result = 'Phone';
+	  }
+	  if (str.indexOf('controll') >= 0) {
+	    result = 'Controller';
+	  }
+	  if (str.indexOf('line o') >= 0) {
+	    result = 'Line Out';
+	  }
+	  if (str.indexOf('digital o') >= 0) {
+	    result = 'Digital Out';
+	  }
+	  if (str.indexOf('smart sound technology') >= 0) {
+	    result = 'Digital Signal Processor';
+	  }
+	  if (str.indexOf('high definition audio') >= 0) {
+	    result = 'Sound Driver';
+	  }
 
 	  if (!result && output) {
 	    result = 'Speaker';
@@ -17716,13 +17984,12 @@ function requireAudio () {
 	  return result;
 	}
 
-
 	function getLinuxAudioPci() {
 	  let cmd = 'lspci -v 2>/dev/null';
 	  let result = [];
 	  try {
 	    const parts = execSync(cmd, util.execOptsLinux).toString().split('\n\n');
-	    parts.forEach(element => {
+	    parts.forEach((element) => {
 	      const lines = element.split('\n');
 	      if (lines && lines.length && lines[0].toLowerCase().indexOf('audio') >= 0) {
 	        const audio = {};
@@ -17737,11 +18004,27 @@ function requireAudio () {
 	  }
 	}
 
+	function parseWinAudioStatus(n) {
+	  let status = n;
+	  if (n === 1) {
+	    status = 'other';
+	  } else if (n === 2) {
+	    status = 'unknown';
+	  } else if (n === 3) {
+	    status = 'enabled';
+	  } else if (n === 4) {
+	    status = 'disabled';
+	  } else if (n === 5) {
+	    status = 'not applicable';
+	  }
+	  return status;
+	}
+
 	function parseLinuxAudioPciMM(lines, audioPCI) {
 	  const result = {};
 	  const slotId = util.getValue(lines, 'Slot');
 
-	  const pciMatch = audioPCI.filter(function (item) { return item.slotId === slotId; });
+	  const pciMatch = audioPCI.filter((item) => item.slotId === slotId);
 
 	  result.id = slotId;
 	  result.name = util.getValue(lines, 'SDevice');
@@ -17761,12 +18044,24 @@ function requireAudio () {
 	function parseDarwinChannel(str) {
 	  let result = '';
 
-	  if (str.indexOf('builtin') >= 0) { result = 'Built-In'; }
-	  if (str.indexOf('extern') >= 0) { result = 'Audio-Jack'; }
-	  if (str.indexOf('hdmi') >= 0) { result = 'HDMI'; }
-	  if (str.indexOf('displayport') >= 0) { result = 'Display-Port'; }
-	  if (str.indexOf('usb') >= 0) { result = 'USB'; }
-	  if (str.indexOf('pci') >= 0) { result = 'PCIe'; }
+	  if (str.indexOf('builtin') >= 0) {
+	    result = 'Built-In';
+	  }
+	  if (str.indexOf('extern') >= 0) {
+	    result = 'Audio-Jack';
+	  }
+	  if (str.indexOf('hdmi') >= 0) {
+	    result = 'HDMI';
+	  }
+	  if (str.indexOf('displayport') >= 0) {
+	    result = 'Display-Port';
+	  }
+	  if (str.indexOf('usb') >= 0) {
+	    result = 'USB';
+	  }
+	  if (str.indexOf('pci') >= 0) {
+	    result = 'PCIe';
+	  }
 
 	  return result;
 	}
@@ -17792,7 +18087,7 @@ function requireAudio () {
 
 	function parseWindowsAudio(lines) {
 	  const result = {};
-	  const status = util.getValue(lines, 'StatusInfo', ':');
+	  const status = parseWinAudioStatus(util.getValue(lines, 'StatusInfo', ':'));
 
 	  result.id = util.getValue(lines, 'DeviceID', ':'); // PNPDeviceID??
 	  result.name = util.getValue(lines, 'name', ':');
@@ -17810,18 +18105,17 @@ function requireAudio () {
 	}
 
 	function audio$1(callback) {
-
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
-	      let result = [];
+	      const result = [];
 	      if (_linux || _freebsd || _openbsd || _netbsd) {
-	        let cmd = 'lspci -vmm 2>/dev/null';
-	        exec(cmd, function (error, stdout) {
+	        const cmd = 'lspci -vmm 2>/dev/null';
+	        exec(cmd, (error, stdout) => {
 	          // PCI
 	          if (!error) {
 	            const audioPCI = getLinuxAudioPci();
 	            const parts = stdout.toString().split('\n\n');
-	            parts.forEach(element => {
+	            parts.forEach((element) => {
 	              const lines = element.split('\n');
 	              if (util.getValue(lines, 'class', ':', true).toLowerCase().indexOf('audio') >= 0) {
 	                const audio = parseLinuxAudioPciMM(lines, audioPCI);
@@ -17836,8 +18130,8 @@ function requireAudio () {
 	        });
 	      }
 	      if (_darwin) {
-	        let cmd = 'system_profiler SPAudioDataType -json';
-	        exec(cmd, function (error, stdout) {
+	        const cmd = 'system_profiler SPAudioDataType -json';
+	        exec(cmd, (error, stdout) => {
 	          if (!error) {
 	            try {
 	              const outObj = JSON.parse(stdout.toString());
@@ -17861,7 +18155,7 @@ function requireAudio () {
 	        util.powerShell('Get-CimInstance Win32_SoundDevice | select DeviceID,StatusInfo,Name,Manufacturer | fl').then((stdout, error) => {
 	          if (!error) {
 	            const parts = stdout.toString().split(/\n\s*\n/);
-	            parts.forEach(element => {
+	            parts.forEach((element) => {
 	              const lines = element.split('\n');
 	              if (util.getValue(lines, 'name', ':')) {
 	                result.push(parseWindowsAudio(lines));
@@ -19044,7 +19338,7 @@ function requireBluetooth () {
 	// ----------------------------------------------------------------------------------
 	// Description:   System Information - library
 	//                for Node.js
-	// Copyright:     (c) 2014 - 2025
+	// Copyright:     (c) 2014 - 2026
 	// Author:        Sebastian Hildebrandt
 	// ----------------------------------------------------------------------------------
 	// License:       MIT
@@ -19061,28 +19355,59 @@ function requireBluetooth () {
 
 	let _platform = process.platform;
 
-	const _linux = (_platform === 'linux' || _platform === 'android');
-	const _darwin = (_platform === 'darwin');
-	const _windows = (_platform === 'win32');
-	const _freebsd = (_platform === 'freebsd');
-	const _openbsd = (_platform === 'openbsd');
-	const _netbsd = (_platform === 'netbsd');
-	const _sunos = (_platform === 'sunos');
+	const _linux = _platform === 'linux' || _platform === 'android';
+	const _darwin = _platform === 'darwin';
+	const _windows = _platform === 'win32';
+	const _freebsd = _platform === 'freebsd';
+	const _openbsd = _platform === 'openbsd';
+	const _netbsd = _platform === 'netbsd';
+	const _sunos = _platform === 'sunos';
 
 	function parseBluetoothType(str) {
 	  let result = '';
 
-	  if (str.indexOf('keyboard') >= 0) { result = 'Keyboard'; }
-	  if (str.indexOf('mouse') >= 0) { result = 'Mouse'; }
-	  if (str.indexOf('trackpad') >= 0) { result = 'Trackpad'; }
-	  if (str.indexOf('speaker') >= 0) { result = 'Speaker'; }
-	  if (str.indexOf('headset') >= 0) { result = 'Headset'; }
-	  if (str.indexOf('phone') >= 0) { result = 'Phone'; }
-	  if (str.indexOf('macbook') >= 0) { result = 'Computer'; }
-	  if (str.indexOf('imac') >= 0) { result = 'Computer'; }
-	  if (str.indexOf('ipad') >= 0) { result = 'Tablet'; }
-	  if (str.indexOf('watch') >= 0) { result = 'Watch'; }
-	  if (str.indexOf('headphone') >= 0) { result = 'Headset'; }
+	  if (str.indexOf('keyboard') >= 0) {
+	    result = 'Keyboard';
+	  }
+	  if (str.indexOf('mouse') >= 0) {
+	    result = 'Mouse';
+	  }
+	  if (str.indexOf('trackpad') >= 0) {
+	    result = 'Trackpad';
+	  }
+	  if (str.indexOf('audio') >= 0) {
+	    result = 'Audio';
+	  }
+	  if (str.indexOf('sound') >= 0) {
+	    result = 'Audio';
+	  }
+	  if (str.indexOf('microph') >= 0) {
+	    result = 'Microphone';
+	  }
+	  if (str.indexOf('speaker') >= 0) {
+	    result = 'Speaker';
+	  }
+	  if (str.indexOf('headset') >= 0) {
+	    result = 'Headset';
+	  }
+	  if (str.indexOf('phone') >= 0) {
+	    result = 'Phone';
+	  }
+	  if (str.indexOf('macbook') >= 0) {
+	    result = 'Computer';
+	  }
+	  if (str.indexOf('imac') >= 0) {
+	    result = 'Computer';
+	  }
+	  if (str.indexOf('ipad') >= 0) {
+	    result = 'Tablet';
+	  }
+	  if (str.indexOf('watch') >= 0) {
+	    result = 'Watch';
+	  }
+	  if (str.indexOf('headphone') >= 0) {
+	    result = 'Headset';
+	  }
 	  // to be continued ...
 
 	  return result;
@@ -19091,13 +19416,27 @@ function requireBluetooth () {
 	function parseBluetoothManufacturer(str) {
 	  let result = str.split(' ')[0];
 	  str = str.toLowerCase();
-	  if (str.indexOf('apple') >= 0) { result = 'Apple'; }
-	  if (str.indexOf('ipad') >= 0) { result = 'Apple'; }
-	  if (str.indexOf('imac') >= 0) { result = 'Apple'; }
-	  if (str.indexOf('iphone') >= 0) { result = 'Apple'; }
-	  if (str.indexOf('magic mouse') >= 0) { result = 'Apple'; }
-	  if (str.indexOf('magic track') >= 0) { result = 'Apple'; }
-	  if (str.indexOf('macbook') >= 0) { result = 'Apple'; }
+	  if (str.indexOf('apple') >= 0) {
+	    result = 'Apple';
+	  }
+	  if (str.indexOf('ipad') >= 0) {
+	    result = 'Apple';
+	  }
+	  if (str.indexOf('imac') >= 0) {
+	    result = 'Apple';
+	  }
+	  if (str.indexOf('iphone') >= 0) {
+	    result = 'Apple';
+	  }
+	  if (str.indexOf('magic mouse') >= 0) {
+	    result = 'Apple';
+	  }
+	  if (str.indexOf('magic track') >= 0) {
+	    result = 'Apple';
+	  }
+	  if (str.indexOf('macbook') >= 0) {
+	    result = 'Apple';
+	  }
 	  // to be continued ...
 
 	  return result;
@@ -19125,7 +19464,9 @@ function requireBluetooth () {
 
 	function parseDarwinBluetoothDevices(bluetoothObject, macAddr2) {
 	  const result = {};
-	  const typeStr = ((bluetoothObject.device_minorClassOfDevice_string || bluetoothObject.device_majorClassOfDevice_string || bluetoothObject.device_minorType || '') + (bluetoothObject.device_name || '')).toLowerCase();
+	  const typeStr = (
+	    (bluetoothObject.device_minorClassOfDevice_string || bluetoothObject.device_majorClassOfDevice_string || bluetoothObject.device_minorType || '') + (bluetoothObject.device_name || '')
+	  ).toLowerCase();
 
 	  result.device = bluetoothObject.device_services || '';
 	  result.name = bluetoothObject.device_name || '';
@@ -19155,7 +19496,6 @@ function requireBluetooth () {
 	}
 
 	function bluetoothDevices(callback) {
-
 	  return new Promise((resolve) => {
 	    process.nextTick(() => {
 	      let result = [];
@@ -19191,11 +19531,17 @@ function requireBluetooth () {
 	      }
 	      if (_darwin) {
 	        let cmd = 'system_profiler SPBluetoothDataType -json';
-	        exec(cmd, function (error, stdout) {
+	        exec(cmd, (error, stdout) => {
 	          if (!error) {
 	            try {
 	              const outObj = JSON.parse(stdout.toString());
-	              if (outObj.SPBluetoothDataType && outObj.SPBluetoothDataType.length && outObj.SPBluetoothDataType[0] && outObj.SPBluetoothDataType[0]['device_title'] && outObj.SPBluetoothDataType[0]['device_title'].length) {
+	              if (
+	                outObj.SPBluetoothDataType &&
+	                outObj.SPBluetoothDataType.length &&
+	                outObj.SPBluetoothDataType[0] &&
+	                outObj.SPBluetoothDataType[0]['device_title'] &&
+	                outObj.SPBluetoothDataType[0]['device_title'].length
+	              ) {
 	                // missing: host BT Adapter macAddr ()
 	                let macAddr2 = null;
 	                if (outObj.SPBluetoothDataType[0]['local_device_title'] && outObj.SPBluetoothDataType[0].local_device_title.general_address) {
@@ -19212,8 +19558,17 @@ function requireBluetooth () {
 	                  }
 	                });
 	              }
-	              if (outObj.SPBluetoothDataType && outObj.SPBluetoothDataType.length && outObj.SPBluetoothDataType[0] && outObj.SPBluetoothDataType[0]['device_connected'] && outObj.SPBluetoothDataType[0]['device_connected'].length) {
-	                const macAddr2 = outObj.SPBluetoothDataType[0].controller_properties && outObj.SPBluetoothDataType[0].controller_properties.controller_address ? outObj.SPBluetoothDataType[0].controller_properties.controller_address.toLowerCase().replace(/-/g, ':') : null;
+	              if (
+	                outObj.SPBluetoothDataType &&
+	                outObj.SPBluetoothDataType.length &&
+	                outObj.SPBluetoothDataType[0] &&
+	                outObj.SPBluetoothDataType[0]['device_connected'] &&
+	                outObj.SPBluetoothDataType[0]['device_connected'].length
+	              ) {
+	                const macAddr2 =
+	                  outObj.SPBluetoothDataType[0].controller_properties && outObj.SPBluetoothDataType[0].controller_properties.controller_address
+	                    ? outObj.SPBluetoothDataType[0].controller_properties.controller_address.toLowerCase().replace(/-/g, ':')
+	                    : null;
 	                outObj.SPBluetoothDataType[0]['device_connected'].forEach((element) => {
 	                  const obj = element;
 	                  const objKey = Object.keys(obj);
@@ -19226,8 +19581,17 @@ function requireBluetooth () {
 	                  }
 	                });
 	              }
-	              if (outObj.SPBluetoothDataType && outObj.SPBluetoothDataType.length && outObj.SPBluetoothDataType[0] && outObj.SPBluetoothDataType[0]['device_not_connected'] && outObj.SPBluetoothDataType[0]['device_not_connected'].length) {
-	                const macAddr2 = outObj.SPBluetoothDataType[0].controller_properties && outObj.SPBluetoothDataType[0].controller_properties.controller_address ? outObj.SPBluetoothDataType[0].controller_properties.controller_address.toLowerCase().replace(/-/g, ':') : null;
+	              if (
+	                outObj.SPBluetoothDataType &&
+	                outObj.SPBluetoothDataType.length &&
+	                outObj.SPBluetoothDataType[0] &&
+	                outObj.SPBluetoothDataType[0]['device_not_connected'] &&
+	                outObj.SPBluetoothDataType[0]['device_not_connected'].length
+	              ) {
+	                const macAddr2 =
+	                  outObj.SPBluetoothDataType[0].controller_properties && outObj.SPBluetoothDataType[0].controller_properties.controller_address
+	                    ? outObj.SPBluetoothDataType[0].controller_properties.controller_address.toLowerCase().replace(/-/g, ':')
+	                    : null;
 	                outObj.SPBluetoothDataType[0]['device_not_connected'].forEach((element) => {
 	                  const obj = element;
 	                  const objKey = Object.keys(obj);
@@ -19240,7 +19604,7 @@ function requireBluetooth () {
 	                  }
 	                });
 	              }
-	            } catch (e) {
+	            } catch {
 	              util.noop();
 	            }
 	          }
@@ -19251,12 +19615,16 @@ function requireBluetooth () {
 	        });
 	      }
 	      if (_windows) {
-	        util.powerShell('Get-CimInstance Win32_PNPEntity | select PNPClass, Name, Manufacturer | fl').then((stdout, error) => {
+	        util.powerShell('Get-CimInstance Win32_PNPEntity | select PNPClass, Name, Manufacturer, Status, Service, ConfigManagerErrorCode, Present | fl').then((stdout, error) => {
 	          if (!error) {
 	            const parts = stdout.toString().split(/\n\s*\n/);
 	            parts.forEach((part) => {
-	              if (util.getValue(part.split('\n'), 'PNPClass', ':') === 'Bluetooth') {
-	                result.push(parseWindowsBluetooth(part.split('\n')));
+	              const lines = part.split('\n');
+	              const service = util.getValue(lines, 'Service', ':');
+	              const errorCode = util.getValue(lines, 'ConfigManagerErrorCode', ':');
+	              const pnpClass = util.getValue(lines, 'PNPClass', ':').toLowerCase();
+	              if (pnpClass === 'bluetooth' && errorCode === '0' && service === '') {
+	                result.push(parseWindowsBluetooth(lines));
 	              }
 	            });
 	          }
@@ -19289,7 +19657,7 @@ function requireLib$1 () {
 		// ----------------------------------------------------------------------------------
 		// Description:   System Information - library
 		//                for Node.js
-		// Copyright:     (c) 2014 - 2025
+		// Copyright:     (c) 2014 - 2026
 		// Author:        Sebastian Hildebrandt
 		// ----------------------------------------------------------------------------------
 		// Contributors:  Guillaume Legrain (https://github.com/glegrain)
@@ -19326,12 +19694,12 @@ function requireLib$1 () {
 		const audio = requireAudio();
 		const bluetooth = requireBluetooth();
 
-		let _platform = process.platform;
-		const _windows = (_platform === 'win32');
-		const _freebsd = (_platform === 'freebsd');
-		const _openbsd = (_platform === 'openbsd');
-		const _netbsd = (_platform === 'netbsd');
-		const _sunos = (_platform === 'sunos');
+		const _platform = process.platform;
+		const _windows = _platform === 'win32';
+		const _freebsd = _platform === 'freebsd';
+		const _openbsd = _platform === 'openbsd';
+		const _netbsd = _platform === 'netbsd';
+		const _sunos = _platform === 'sunos';
 
 		// ----------------------------------------------------------------------------------
 		// init
@@ -19358,11 +19726,9 @@ function requireLib$1 () {
 		// get static data - they should not change until restarted
 
 		function getStaticData(callback) {
-
 		  return new Promise((resolve) => {
 		    process.nextTick(() => {
-
-		      let data = {};
+		      const data = {};
 
 		      data.version = version();
 
@@ -19383,7 +19749,7 @@ function requireLib$1 () {
 		        audio.audio(),
 		        bluetooth.bluetoothDevices(),
 		        usb.usb(),
-		        printer.printer(),
+		        printer.printer()
 		      ]).then((res) => {
 		        data.system = res[0];
 		        data.bios = res[1];
@@ -19402,13 +19768,14 @@ function requireLib$1 () {
 		        data.bluetooth = res[14];
 		        data.usb = res[15];
 		        data.printer = res[16];
-		        if (callback) { callback(data); }
+		        if (callback) {
+		          callback(data);
+		        }
 		        resolve(data);
 		      });
 		    });
 		  });
 		}
-
 
 		// --------------------------
 		// get all dynamic data - e.g. for monitoring agents
@@ -19419,7 +19786,6 @@ function requireLib$1 () {
 		// - iface:	define network interface for which you like to monitor network speed e.g. "eth0"
 
 		function getDynamicData(srv, iface, callback) {
-
 		  if (util.isFunction(iface)) {
 		    callback = iface;
 		    iface = '';
@@ -19431,16 +19797,21 @@ function requireLib$1 () {
 
 		  return new Promise((resolve) => {
 		    process.nextTick(() => {
-
 		      iface = iface || network.getDefaultNetworkInterface();
 		      srv = srv || '';
 
 		      // use closure to track ƒ completion
-		      let functionProcessed = (function () {
+		      let functionProcessed = (() => {
 		        let totalFunctions = 15;
-		        if (_windows) { totalFunctions = 13; }
-		        if (_freebsd || _openbsd || _netbsd) { totalFunctions = 11; }
-		        if (_sunos) { totalFunctions = 6; }
+		        if (_windows) {
+		          totalFunctions = 13;
+		        }
+		        if (_freebsd || _openbsd || _netbsd) {
+		          totalFunctions = 11;
+		        }
+		        if (_sunos) {
+		          totalFunctions = 6;
+		        }
 
 		        return function () {
 		          if (--totalFunctions === 0) {
@@ -19452,7 +19823,7 @@ function requireLib$1 () {
 		        };
 		      })();
 
-		      let data = {};
+		      const data = {};
 
 		      // get time
 		      data.time = osInfo.time();
@@ -19570,7 +19941,6 @@ function requireLib$1 () {
 		// - iface:	define network interface for which you like to monitor network speed e.g. "eth0"
 
 		function getAllData(srv, iface, callback) {
-
 		  return new Promise((resolve) => {
 		    process.nextTick(() => {
 		      let data = {};
@@ -19594,7 +19964,9 @@ function requireLib$1 () {
 		              data[key] = res[key];
 		            }
 		          }
-		          if (callback) { callback(data); }
+		          if (callback) {
+		            callback(data);
+		          }
 		          resolve(data);
 		        });
 		      });
@@ -19606,8 +19978,8 @@ function requireLib$1 () {
 		  return new Promise((resolve) => {
 		    process.nextTick(() => {
 		      const allPromises = Object.keys(valueObject)
-		        .filter(func => ({}.hasOwnProperty.call(exports$1, func)))
-		        .map(func => {
+		        .filter((func) => ({}).hasOwnProperty.call(exports$1, func))
+		        .map((func) => {
 		          const params = valueObject[func].substring(valueObject[func].lastIndexOf('(') + 1, valueObject[func].lastIndexOf(')'));
 		          let funcWithoutParams = func.indexOf(')') >= 0 ? func.split(')')[1].trim() : func;
 		          funcWithoutParams = func.indexOf('|') >= 0 ? func.split('|')[0].trim() : funcWithoutParams;
@@ -19645,12 +20017,12 @@ function requireLib$1 () {
 		                if (Array.isArray(data[i])) {
 		                  // result is in an array, go through all elements of array and pick only the right ones
 		                  const partialArray = [];
-		                  data[i].forEach(element => {
+		                  data[i].forEach((element) => {
 		                    let partialRes = {};
 		                    if (keys.length === 1 && (keys[0] === '*' || keys[0] === 'all')) {
 		                      partialRes = element;
 		                    } else {
-		                      keys.forEach(k => {
+		                      keys.forEach((k) => {
 		                        if ({}.hasOwnProperty.call(element, k)) {
 		                          partialRes[k] = element[k];
 		                        }
@@ -19660,11 +20032,11 @@ function requireLib$1 () {
 		                    if (filter && filterParts.length === 2) {
 		                      if ({}.hasOwnProperty.call(partialRes, filterParts[0].trim())) {
 		                        const val = partialRes[filterParts[0].trim()];
-		                        if (typeof val == 'number') {
+		                        if (typeof val === 'number') {
 		                          if (val === parseFloat(filterParts[1].trim())) {
 		                            partialArray.push(partialRes);
 		                          }
-		                        } else if (typeof val == 'string') {
+		                        } else if (typeof val === 'string') {
 		                          if (val.toLowerCase() === filterParts[1].trim().toLowerCase()) {
 		                            partialArray.push(partialRes);
 		                          }
@@ -19673,12 +20045,11 @@ function requireLib$1 () {
 		                    } else {
 		                      partialArray.push(partialRes);
 		                    }
-
 		                  });
 		                  result[key] = partialArray;
 		                } else {
 		                  const partialRes = {};
-		                  keys.forEach(k => {
+		                  keys.forEach((k) => {
 		                    if ({}.hasOwnProperty.call(data[i], k)) {
 		                      partialRes[k] = data[i][k];
 		                    }
@@ -19692,7 +20063,9 @@ function requireLib$1 () {
 		            i++;
 		          }
 		        }
-		        if (callback) { callback(result); }
+		        if (callback) {
+		          callback(result);
+		        }
 		        resolve(result);
 		      });
 		    });
