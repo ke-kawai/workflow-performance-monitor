@@ -79,7 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Monitor Workflow Performance
-        uses: ke-kawai/workflow-performance-monitor@v1.0.0
+        uses: ke-kawai/workflow-performance-monitor@v1
 ```
 
 ## Configuration
