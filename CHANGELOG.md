@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.4](https://github.com/ke-kawai/workflow-performance-monitor/compare/v1.1.3...v1.1.4) (2026-09-29)
+
+
+### Miscellaneous
+
+* **deps-dev:** bump @types/node from 25.0.5 to 25.2.3 ([#23](https://github.com/ke-kawai/workflow-performance-monitor/issues/23)) ([7ae5036](https://github.com/ke-kawai/workflow-performance-monitor/commit/7ae50368dc256af221801f16278740a443d8678f))
+* **deps-dev:** bump rollup from 4.55.1 to 4.57.1 ([#22](https://github.com/ke-kawai/workflow-performance-monitor/issues/22)) ([114da75](https://github.com/ke-kawai/workflow-performance-monitor/commit/114da759ecadf7e8fb28d8fdbbe4d536d187724b))
+* **deps:** bump actions/upload-artifact from 6 to 7 ([#26](https://github.com/ke-kawai/workflow-performance-monitor/issues/26)) ([fe8c0bd](https://github.com/ke-kawai/workflow-performance-monitor/commit/fe8c0bdfc77ae22530233701f4894233fbbfcce4))
+* **deps:** bump googleapis/release-please-action from 4 to 5 ([#27](https://github.com/ke-kawai/workflow-performance-monitor/issues/27)) ([6a77fc5](https://github.com/ke-kawai/workflow-performance-monitor/commit/6a77fc597d7db37b4b6953fc103e554f4d0ded79))
+
 ## [1.1.3](https://github.com/ke-kawai/workflow-performance-monitor/compare/v1.1.2...v1.1.3) (2026-01-10)
 
 
